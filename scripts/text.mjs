@@ -239,9 +239,49 @@ export function renderText(report, context) {
   return lines.join("\n");
 }
 
+/** What a published version's row says beside its check. */
+function publishedNote(version) {
+  const notes = [version.check];
+  if (version.unchanged) notes.push("unchanged");
+  if (version.stale) notes.push("stale");
+  if (version.refused) notes.push(`not stored: ${version.refused}`);
+  return notes.join(", ");
+}
+
+/** The publish, for the job summary: each clip's living URL. */
+export function publishText(report, context) {
+  if (!report) {
+    return ["### Versioncam: nothing published", "", unfinished("publish", context)].join("\n");
+  }
+  const versions = report.versions ?? [];
+  const lines = [
+    `### Versioncam: ${count(versions.length, "clip")} published`,
+    "",
+    `To ${code(report.project)} on ${report.api}.`,
+    "",
+  ];
+  if (versions.length > 0) {
+    lines.push("| Clip | Living URL | This version | Check |", "|---|---|---|---|");
+    for (const version of versions) {
+      lines.push(
+        `| ${cell(code(version.clip))} | ${cell(version.url)} | ${cell(link(version.version, version.versionUrl))} | ${cell(publishedNote(version))} |`,
+      );
+    }
+    lines.push("");
+  }
+  lines.push(footer("Published from", context));
+  return lines.join("\n");
+}
+
+/** The living URLs of a publish, one a line: the `urls` output. */
+export function livingUrls(report) {
+  return (report?.versions ?? []).map((v) => v.url).filter(Boolean).join("\n");
+}
+
 /** The summary of any mode. */
 export function summaryText(mode, report, context) {
   if (mode === "render") return renderText(report, context);
+  if (mode === "publish") return publishText(report, context);
   return checkText(report, context);
 }
 

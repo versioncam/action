@@ -1,0 +1,26 @@
+{
+  "api": "https://api.version.cam",
+  "project": "petbul/versioncam-action",
+  "versions": [
+    {
+      "clip": "first",
+      "version": "7f3a9c1",
+      "url": "https://clips.version.cam/petbul/versioncam-action/first",
+      "versionUrl": "https://clips.version.cam/petbul/versioncam-action/first@7f3a9c1",
+      "check": "pass",
+      "unchanged": false,
+      "stale": false,
+      "refused": null
+    },
+    {
+      "clip": "second",
+      "version": "b21e04d",
+      "url": "https://clips.version.cam/petbul/versioncam-action/second",
+      "versionUrl": "https://clips.version.cam/petbul/versioncam-action/second@b21e04d",
+      "check": "fail",
+      "unchanged": false,
+      "stale": true,
+      "refused": null
+    }
+  ]
+}

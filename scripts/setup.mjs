@@ -17,8 +17,12 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { error, isMain, setOutput } from "./actions.mjs";
 import { findRecorder, hasPublish, recorderVersion } from "./recorder.mjs";
 
-export const MODES = ["check", "render"];
+export const MODES = ["check", "render", "publish"];
 export const INSTALL = "npm i -D versioncam@latest";
+
+/** The sentence for a publishing job that cannot ask GitHub for a token. */
+export const NEEDS_ID_TOKEN =
+  "Publishing needs `id-token: write` in the job's permissions, so that the Action can ask GitHub for a token for version.cam.";
 
 /** A problem the Action stops for, in the sentence it stops with. */
 class Stop extends Error {}
@@ -57,8 +61,9 @@ function named(dir, workspace) {
 
 /**
  * Everything the step checks, in the order a person would want to hear
- * about it: the inputs, then the directory, then the recorder. Returns the
- * outputs, or throws the sentence to stop with.
+ * about it: the inputs, then the job's permissions (a publishing job without
+ * `id-token: write` is wrong whatever is installed), then the directory, then
+ * the recorder. Returns the outputs, or throws the sentence to stop with.
  */
 export function prepare(env, { cwd = process.cwd(), help = runHelp } = {}) {
   const mode = env.VERSIONCAM_ACTION_MODE ?? "";
@@ -85,6 +90,13 @@ export function prepare(env, { cwd = process.cwd(), help = runHelp } = {}) {
         "storage-state is not JSON: give it the contents of the session file `versioncam login` saved, from a secret, not the file's path.",
       );
     }
+  }
+
+  if (
+    mode === "publish" &&
+    (!env.ACTIONS_ID_TOKEN_REQUEST_URL || !env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)
+  ) {
+    throw new Stop(NEEDS_ID_TOKEN);
   }
 
   const given = env.VERSIONCAM_ACTION_WORKING_DIRECTORY || ".";

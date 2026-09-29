@@ -9,9 +9,11 @@ import {
   commentBody,
   directory,
   headline,
+  livingUrls,
   marker,
   MESSAGE_LIMIT,
   pictureName,
+  publishText,
   renderText,
   stoppedAt,
 } from "./text.mjs";
@@ -127,11 +129,30 @@ test("the render's summary lists each clip's files and links the artifact", () =
   assert.match(both, /\*\*`second`\*\* did not render:\n\n```text\nno ffmpeg\n```/);
 });
 
+test("the publish's summary gives each living URL, and the output lists them", () => {
+  const published = report("publish.json");
+  const text = publishText(published, context);
+  assert.match(text, /^### Versioncam: 2 clips published$/m);
+  assert.ok(text.includes("To `petbul/versioncam-action` on https://api.version.cam."));
+  assert.ok(
+    text.includes(
+      "| `first` | https://clips.version.cam/petbul/versioncam-action/first | [7f3a9c1](https://clips.version.cam/petbul/versioncam-action/first@7f3a9c1) | pass |",
+    ),
+  );
+  assert.match(text, /\| fail, stale \|/);
+  assert.equal(
+    livingUrls(published),
+    "https://clips.version.cam/petbul/versioncam-action/first\nhttps://clips.version.cam/petbul/versioncam-action/second",
+  );
+  assert.equal(livingUrls(null), "");
+});
+
 test("the line a failing job ends with", () => {
   assert.equal(headline("check", report("check-fail.json"), 1), "1 of 1 clip no longer matches the app: first.");
   assert.equal(headline("check", report("check-pass.json"), 0), "");
   assert.equal(headline("check", null, 1), "versioncam check did not finish; its output above says why.");
   assert.equal(headline("render", { failed: [{ id: "a" }, { id: "b" }] }, 1), "2 clips did not render: a, b.");
+  assert.equal(headline("publish", null, 1), "versioncam publish did not finish; its output above says why.");
 });
 
 test("a picture is named for its clip, safely", () => {
@@ -146,6 +167,8 @@ test("nothing the Action writes has a long dash in it", () => {
     checkText(null, context),
     renderText(report("render.json"), context),
     renderText(null, context),
+    publishText(report("publish.json"), context),
+    publishText(null, context),
   ];
   for (const text of texts) assert.doesNotMatch(text, /[\u2013\u2014]/);
 });

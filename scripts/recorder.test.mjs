@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { directoriesUp, findRecorder, hasPublish, recorderVersion } from "./recorder.mjs";
-import { INSTALL, prepare } from "./setup.mjs";
+import { INSTALL, NEEDS_ID_TOKEN, prepare } from "./setup.mjs";
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const root = mkdtempSync(join(tmpdir(), "versioncam-recorder-test-"));
@@ -111,8 +111,9 @@ test("setup stops with one sentence for each thing that is wrong", () => {
     assert.fail("setup did not stop");
   };
 
-  assert.equal(stops({ VERSIONCAM_ACTION_MODE: "record" }), 'mode must be check or render, not "record".');
+  assert.equal(stops({ VERSIONCAM_ACTION_MODE: "record" }), 'mode must be check, render or publish, not "record".');
   assert.equal(stops({ VERSIONCAM_ACTION_COMMENT: "yes" }), 'comment must be true or false, not "yes".');
+  assert.equal(stops({ VERSIONCAM_ACTION_MODE: "publish" }), NEEDS_ID_TOKEN);
   assert.equal(
     stops({ VERSIONCAM_ACTION_WORKING_DIRECTORY: "apps/api" }),
     'working-directory "apps/api" is not a directory in this checkout: run actions/checkout first, and give the path from the repository\'s root.',
@@ -143,3 +144,14 @@ test("a storage state that is not JSON is refused without being repeated", () =>
   }
 });
 
+test("publish is checked for its permission before anything is looked for", () => {
+  // No versioncam, no directory: the permission is still what it says.
+  const bare = join(root, "bare");
+  mkdirSync(bare, { recursive: true });
+  try {
+    prepare(env(bare, { VERSIONCAM_ACTION_MODE: "publish", VERSIONCAM_ACTION_WORKING_DIRECTORY: "missing" }), { cwd: bare });
+    assert.fail("setup did not stop");
+  } catch (stop) {
+    assert.equal(stop.message, NEEDS_ID_TOKEN);
+  }
+});

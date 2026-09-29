@@ -81,3 +81,28 @@ jobs:
             if (files.length !== 4 || !files.every((f) => fs.existsSync(f))) throw new Error("render is missing files");
             console.log(`checked ${check.clips.length} clip(s) with versioncam ${check.recorder}; rendered ${files.length} files`);
           '
+
+  # publish without `id-token: write` must stop at once with one sentence.
+  # Nothing is installed: the Action checks the job's permissions before it
+  # looks for versioncam, so this job needs neither npm nor the service.
+  publish-without-permission:
+    name: Publish without id-token stops
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # and no id-token: write, on purpose
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish
+        id: publish
+        continue-on-error: true
+        uses: ./
+        with:
+          mode: publish
+          working-directory: test-app
+      - name: It stopped, and the result says so
+        env:
+          OUTCOME: ${{ steps.publish.outcome }}
+          RESULT: ${{ steps.publish.outputs.result }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$RESULT" = fail

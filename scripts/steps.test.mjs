@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { NEEDS_ID_TOKEN } from "./setup.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 // Its real path: a step resolves the directory it runs in, and on macOS the
@@ -43,6 +44,13 @@ function step(script, args, env = {}, input) {
   return { status: ran.status, stdout: ran.stdout, stderr: ran.stderr, outputs, summary: readFileSync(summary, "utf8") };
 }
 
+test("setup stops a publishing job without id-token: write with the one sentence", () => {
+  const ran = step("setup.mjs", [], { VERSIONCAM_ACTION_MODE: "publish" });
+  assert.equal(ran.status, 1);
+  assert.equal(ran.stdout, `::error::${NEEDS_ID_TOKEN}\n`);
+  assert.deepEqual(ran.outputs, {});
+});
+
 test("setup runs the repository's versioncam to read its help, and hands it on", () => {
   const app = join(dir, "app");
   mkdirSync(join(app, "node_modules", ".bin"), { recursive: true });
@@ -60,6 +68,17 @@ test("setup runs the repository's versioncam to read its help, and hands it on",
   assert.equal(ran.outputs.bin, bin);
   assert.ok(existsSync(ran.outputs.dir));
   assert.equal(ran.outputs["storage-state"], "");
+});
+
+test("the token comes out of GitHub's answer, and nothing else does", () => {
+  const ok = step("oidc.mjs", [], {}, JSON.stringify({ count: 1, value: "header.payload.sig" }));
+  assert.equal(ok.status, 0);
+  assert.equal(ok.stdout, "header.payload.sig");
+
+  const bad = step("oidc.mjs", [], {}, '{"message":"eyJ-secret-looking-thing"');
+  assert.equal(bad.status, 1);
+  assert.equal(bad.stdout, "");
+  assert.ok(!bad.stderr.includes("eyJ"));
 });
 
 test("a failing check's picture is uploaded under the clip's name", () => {
@@ -94,7 +113,7 @@ test("every file a render made is uploaded, and a missing report uploads nothing
   assert.match(none.stdout, /Nothing to upload/);
 });
 
-test("the summary step writes the summary and the headline", () => {
+test("the summary step writes the summary, the headline and, for publish, the URLs", () => {
   const checked = step("summary.mjs", [
     "--mode", "check",
     "--report", join(here, "fixtures", "check-fail.json"),
@@ -106,4 +125,8 @@ test("the summary step writes the summary and the headline", () => {
   assert.match(checked.summary, /^### Versioncam: 1 of 1 clip no longer matches the app\n/);
   assert.equal(checked.outputs.headline, "1 of 1 clip no longer matches the app: first.");
 
+  const published = step("summary.mjs", ["--mode", "publish", "--report", join(here, "fixtures", "publish.json"), "--status", "0"]);
+  assert.equal(published.outputs.headline, "");
+  assert.equal(published.outputs.urls.split("\n").length, 2);
+  assert.match(published.summary, /\| Clip \| Living URL \| This version \| Check \|/);
 });

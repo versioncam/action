@@ -10,6 +10,7 @@ inputs:
     description: >-
       check records every clip and fails when one no longer matches the app.
       render encodes what the last check recorded and uploads the videos.
+      publish sends what the last check recorded to version.cam.
     required: false
     default: check
   working-directory:
@@ -36,7 +37,7 @@ inputs:
   install-browser:
     description: >-
       Run versioncam install --with-deps first, for the Chromium versioncam
-      records with.
+      records with. publish needs no browser and skips it.
     required: false
     default: "true"
   comment:
@@ -45,6 +46,10 @@ inputs:
       when a later run passes.
     required: false
     default: "true"
+  api:
+    description: Where publish sends the recordings.
+    required: false
+    default: https://api.version.cam
   github-token:
     description: The token the pull request comment is written with.
     required: false
@@ -57,11 +62,14 @@ outputs:
   report:
     description: The path of the JSON report versioncam wrote, when it wrote one.
     value: ${{ steps.run.outputs.report }}
+  urls:
+    description: publish only. The living URLs, one a line.
+    value: ${{ steps.summary.outputs.urls }}
 
 # A thin wrapper. versioncam does the work; the Action adds only what a
-# command line cannot: the pull request comment, the artifacts and the job
-# summary. Inputs reach scripts through env, never through ${{ }} inside a
-# script, so no input can become shell code.
+# command line cannot: the pull request comment, the artifacts, the job
+# summary and GitHub's token for publish. Inputs reach scripts through env,
+# never through ${{ }} inside a script, so no input can become shell code.
 runs:
   using: composite
   steps:
@@ -75,11 +83,11 @@ runs:
         VERSIONCAM_ACTION_COMMENT: ${{ inputs.comment }}
         VERSIONCAM_ACTION_STORAGE_STATE: ${{ inputs.storage-state }}
       run: |
-        # versioncam: the inputs and the repository's own versioncam, before anything runs
+        # versioncam: the inputs, the job's permissions and the repository's own versioncam, before anything runs
         node "$GITHUB_ACTION_PATH/scripts/setup.mjs"
 
     - name: Install the browser versioncam records with
-      if: inputs.install-browser == 'true'
+      if: inputs.install-browser == 'true' && inputs.mode != 'publish'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -99,8 +107,9 @@ runs:
         VERSIONCAM_ACTION_CLIPS: ${{ inputs.clips }}
         VERSIONCAM_ACTION_URL: ${{ inputs.url }}
         VERSIONCAM_ACTION_SESSION: ${{ steps.setup.outputs.storage-state }}
+        VERSIONCAM_ACTION_API: ${{ inputs.api }}
       run: |
-        # versioncam check or render: its output here as it comes, its exit status kept for the Action's last step
+        # versioncam check, render or publish: its output here as it comes, its exit status kept for the Action's last step
         report="$VERSIONCAM_ACTION_DIR/$VERSIONCAM_ACTION_MODE.json"
         IFS=$' \t\n' read -r -d '' -a clips <<< "$VERSIONCAM_ACTION_CLIPS" || true
 
@@ -118,6 +127,22 @@ runs:
           render)
             "$VERSIONCAM_ACTION_BIN" render --sequence --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
             ;;
+          publish)
+            # GitHub's token for version.cam: asked for now, masked at once,
+            # kept in this shell only, and given to the one command that
+            # needs it. Never printed, never written to a file or an output.
+            token="$(curl -sS --fail --retry 3 \
+              -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=version.cam" \
+              | node "$GITHUB_ACTION_PATH/scripts/oidc.mjs")" || {
+              echo "::error::GitHub gave this job no token for version.cam; the lines above say why."
+              exit 1
+            }
+            echo "::add-mask::$token"
+            VERSIONCAM_OIDC_TOKEN="$token" VERSIONCAM_API="$VERSIONCAM_ACTION_API" \
+              "$VERSIONCAM_ACTION_BIN" publish --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
+            unset token
+            ;;
         esac
 
         echo "status=$status" >> "$GITHUB_OUTPUT"
@@ -125,7 +150,7 @@ runs:
 
     - name: Gather what to upload
       id: files
-      if: ${{ !cancelled() && steps.run.outcome == 'success' }}
+      if: ${{ !cancelled() && steps.run.outcome == 'success' && inputs.mode != 'publish' }}
       shell: bash
       env:
         VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
