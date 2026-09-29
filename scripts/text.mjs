@@ -1,14 +1,20 @@
 /**
- * Everything the Action says in Markdown: the job summary, and the line a
- * failing job ends with.
+ * Everything the Action says in Markdown: the pull request comment, the job
+ * summary of each mode, and the line a failing job ends with.
  *
  * Pure functions of a report and a little context, so that a test can hold
  * every sentence to this repository's rules: no long dashes, no code block a
  * message can break out of, and nothing longer than GitHub will take.
  */
 
+/** GitHub refuses a comment over 65,536 characters; this leaves room. */
+export const COMMENT_LIMIT = 60000;
+
 /** Past this, a failure's message is cut; the job log keeps all of it. */
 export const MESSAGE_LIMIT = 2000;
+
+/** What the Action calls the artifact it uploads. */
+export const FAILURES_ARTIFACT = "versioncam-failures";
 
 /** "1 clip", "2 clips". */
 export function count(n, noun) {
@@ -22,6 +28,21 @@ export function directory(workingDirectory) {
     .replace(/^(\.\/)+/, "")
     .replace(/\/+$/, "");
   return trimmed === "" || trimmed === "." ? "." : trimmed;
+}
+
+/**
+ * The hidden line that finds this Action's comment again on the next run.
+ * One per working directory, so two apps checked in one pull request keep a
+ * comment each. An HTML comment may not contain two hyphens in a row.
+ */
+export function marker(workingDirectory) {
+  const where = directory(workingDirectory).replace(/-{2,}/g, "-");
+  return `<!-- versioncam-action check ${where} -->`;
+}
+
+/** The name a failing clip's picture has inside the failures artifact. */
+export function pictureName(id) {
+  return `${String(id).replace(/[^A-Za-z0-9._-]+/g, "-")}.png`;
 }
 
 /** Inline code that holds any text, backticks included. */
@@ -81,6 +102,15 @@ export function stoppedAt(clip) {
 
 function failedSection(clip, context) {
   const lines = [`**${code(clip.id)}** ${stoppedAt(clip)}:`, "", block(message(clip.message))];
+  if (clip.picture) {
+    const name = code(pictureName(clip.id));
+    lines.push(
+      "",
+      context.artifactUrl
+        ? `The page when it stopped: ${name} in ${link(FAILURES_ARTIFACT, context.artifactUrl)}.`
+        : `The page when it stopped: ${name} (not uploaded).`,
+    );
+  }
   return lines.join("\n");
 }
 
@@ -90,8 +120,11 @@ function unfinished(command, context) {
   return `${code(`versioncam ${command}`)} stopped before it wrote its report. ${log} says why.`;
 }
 
-/** The check, as the job summary says it. */
-export function checkText(report, context) {
+/**
+ * The check, as the comment and the job summary both say it. `again` is for
+ * the comment a passing run rewrites: the one that said clips had failed.
+ */
+export function checkText(report, context, { again = false } = {}) {
   if (!report) {
     return [
       "### Versioncam: the check did not finish",
@@ -106,7 +139,7 @@ export function checkText(report, context) {
 
   if (failed.length === 0) {
     return [
-      "### Versioncam: every clip matches the app",
+      `### Versioncam: every clip matches the app${again ? " again" : ""}`,
       "",
       clips.length === 0
         ? "No clips were checked."
@@ -126,8 +159,36 @@ export function checkText(report, context) {
   }
   tail.push(footer(checkedWith(report.recorder), context));
 
-  const sections = failed.map((clip) => failedSection(clip, context));
+  // Every failing clip in full, until the text would be too long for a
+  // comment; the job log names the rest.
+  const budget =
+    COMMENT_LIMIT - 500 - [...head, ...tail].join("\n").length;
+  const sections = [];
+  let used = 0;
+  for (const clip of failed) {
+    const section = failedSection(clip, context);
+    if (used + section.length + 2 > budget) break;
+    sections.push(section);
+    used += section.length + 2;
+  }
+  const untold = failed.slice(sections.length);
+  if (untold.length > 0) {
+    sections.push(
+      `And ${count(untold.length, "more clip")} failed. The job log has every one.`,
+    );
+  }
+
   return [...head, "", ...sections.flatMap((s) => [s, ""]), ...tail].join("\n");
+}
+
+/** The comment itself: the marker, then the check's text. */
+export function commentBody(report, context, options) {
+  return `${marker(context.workingDirectory)}\n${checkText(report, context, options)}\n`;
+}
+
+/** Whether a check report says every clip passed. */
+export function checkPassed(report) {
+  return Boolean(report) && (report.clips ?? []).every((c) => c.status !== "fail");
 }
 
 /** The summary of any mode. */

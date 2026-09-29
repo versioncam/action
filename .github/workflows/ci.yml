@@ -21,9 +21,14 @@ jobs:
       - run: node --test
 
   # The Action on its own test app, as a customer's workflow would run it.
+  # On the acceptance branch that renames the button, the check fails here and
+  # comments on its pull request.
   test-app:
     name: The Action on its test app
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # the comment on a failing check
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

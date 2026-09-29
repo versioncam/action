@@ -5,7 +5,7 @@
  * goes into.
  *
  *   node summary.mjs --mode check --report <file> --status <exit status>
- *     [--working-directory <dir>]
+ *     [--artifact-url <url>] [--working-directory <dir>]
  */
 import {
   appendSummary,
@@ -25,6 +25,7 @@ if (isMain(import.meta.url)) {
   const report = readJson(args.report);
   const context = {
     workingDirectory: args["working-directory"] ?? ".",
+    artifactUrl: typeof args["artifact-url"] === "string" ? args["artifact-url"] : null,
     runUrl: runUrl(),
   };
   appendSummary(summaryText(mode, report, context));

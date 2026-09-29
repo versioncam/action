@@ -62,11 +62,28 @@ test("setup runs the repository's versioncam to read its help, and hands it on",
   assert.equal(ran.outputs["storage-state"], "");
 });
 
+test("a failing check's picture is uploaded under the clip's name", () => {
+  const picture = join(dir, "recordings", "first", "failure.png");
+  mkdirSync(join(dir, "recordings", "first"), { recursive: true });
+  writeFileSync(picture, "png");
+  const report = join(dir, "check.json");
+  const failing = JSON.parse(readFileSync(join(here, "fixtures", "check-fail.json"), "utf8"));
+  failing.clips[0].picture = picture;
+  failing.clips.push({ id: "second", status: "pass" });
+  writeFileSync(report, JSON.stringify(failing));
+
+  const ran = step("files.mjs", ["--mode", "check", "--report", report, "--into", join(dir, "failures")]);
+  assert.equal(ran.status, 0);
+  assert.equal(ran.outputs.files, join(dir, "failures", "first.png"));
+  assert.equal(readFileSync(join(dir, "failures", "first.png"), "utf8"), "png");
+});
+
 test("the summary step writes the summary and the headline", () => {
   const checked = step("summary.mjs", [
     "--mode", "check",
     "--report", join(here, "fixtures", "check-fail.json"),
     "--status", "1",
+    "--artifact-url", "https://github.com/o/r/actions/runs/1/artifacts/2",
     "--working-directory", "test-app",
   ], { GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1" });
   assert.equal(checked.status, 0);

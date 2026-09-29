@@ -67,6 +67,7 @@ export function prepare(env, { cwd = process.cwd(), help = runHelp } = {}) {
   }
   for (const [input, value] of [
     ["install-browser", env.VERSIONCAM_ACTION_INSTALL_BROWSER],
+    ["comment", env.VERSIONCAM_ACTION_COMMENT],
   ]) {
     if (value !== undefined && !/^(true|false)$/i.test(value)) {
       throw new Stop(`${input} must be true or false, not "${value}".`);

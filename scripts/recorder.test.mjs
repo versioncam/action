@@ -41,6 +41,7 @@ function env(repo, extra = {}) {
     VERSIONCAM_ACTION_MODE: "check",
     VERSIONCAM_ACTION_WORKING_DIRECTORY: "apps/web",
     VERSIONCAM_ACTION_INSTALL_BROWSER: "true",
+    VERSIONCAM_ACTION_COMMENT: "true",
     ...extra,
   };
 }
@@ -111,6 +112,7 @@ test("setup stops with one sentence for each thing that is wrong", () => {
   };
 
   assert.equal(stops({ VERSIONCAM_ACTION_MODE: "record" }), 'mode must be check, not "record".');
+  assert.equal(stops({ VERSIONCAM_ACTION_COMMENT: "yes" }), 'comment must be true or false, not "yes".');
   assert.equal(
     stops({ VERSIONCAM_ACTION_WORKING_DIRECTORY: "apps/api" }),
     'working-directory "apps/api" is not a directory in this checkout: run actions/checkout first, and give the path from the repository\'s root.',

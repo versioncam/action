@@ -102,6 +102,13 @@ export function runUrl(env = process.env) {
   return server && repo && run ? `${server}/${repo}/actions/runs/${run}` : null;
 }
 
+/** The pull request this run is for, from the event's payload; null otherwise. */
+export function pullRequestNumber(env = process.env) {
+  const event = readJson(env.GITHUB_EVENT_PATH);
+  const number = event?.pull_request?.number;
+  return Number.isInteger(number) ? number : null;
+}
+
 /** Whether a module is the script node was asked to run, not an import. */
 export function isMain(moduleUrl) {
   const script = process.argv[1];

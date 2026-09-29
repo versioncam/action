@@ -7,6 +7,7 @@ import {
   escapeData,
   flags,
   parseStatus,
+  pullRequestNumber,
   readJson,
   runUrl,
   setOutput,
@@ -56,10 +57,15 @@ test("a report that is not there, or not JSON, is null", () => {
   assert.equal(readJson(broken), null);
 });
 
-test("the run's page comes from the runner's variables", () => {
+test("the run's page and the pull request come from the runner's variables", () => {
   assert.equal(
     runUrl({ GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "7" }),
     "https://github.com/o/r/actions/runs/7",
   );
   assert.equal(runUrl({}), null);
+  const event = join(dir, "event.json");
+  writeFileSync(event, JSON.stringify({ pull_request: { number: 12 } }));
+  assert.equal(pullRequestNumber({ GITHUB_EVENT_PATH: event }), 12);
+  writeFileSync(event, JSON.stringify({ ref: "refs/heads/main" }));
+  assert.equal(pullRequestNumber({ GITHUB_EVENT_PATH: event }), null);
 });

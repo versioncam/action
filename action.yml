@@ -38,6 +38,16 @@ inputs:
       records with.
     required: false
     default: "true"
+  comment:
+    description: >-
+      On a pull request, comment when the check fails, and rewrite the comment
+      when a later run passes.
+    required: false
+    default: "true"
+  github-token:
+    description: The token the pull request comment is written with.
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   result:
@@ -48,9 +58,9 @@ outputs:
     value: ${{ steps.run.outputs.report }}
 
 # A thin wrapper. versioncam does the work; the Action adds only what a
-# command line cannot, which so far is the job summary. Inputs reach scripts
-# through env, never through ${{ }} inside a script, so no input can become
-# shell code.
+# command line cannot: the pull request comment, the artifacts and the job
+# summary. Inputs reach scripts through env, never through ${{ }} inside a
+# script, so no input can become shell code.
 runs:
   using: composite
   steps:
@@ -61,6 +71,7 @@ runs:
         VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
         VERSIONCAM_ACTION_WORKING_DIRECTORY: ${{ inputs.working-directory }}
         VERSIONCAM_ACTION_INSTALL_BROWSER: ${{ inputs.install-browser }}
+        VERSIONCAM_ACTION_COMMENT: ${{ inputs.comment }}
         VERSIONCAM_ACTION_STORAGE_STATE: ${{ inputs.storage-state }}
       run: |
         # versioncam: the inputs and the repository's own versioncam, before anything runs
@@ -108,6 +119,28 @@ runs:
         echo "status=$status" >> "$GITHUB_OUTPUT"
         if [ -f "$report" ]; then echo "report=$report" >> "$GITHUB_OUTPUT"; fi
 
+    - name: Gather what to upload
+      id: files
+      if: ${{ !cancelled() && steps.run.outcome == 'success' }}
+      shell: bash
+      env:
+        VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
+        VERSIONCAM_ACTION_REPORT: ${{ steps.run.outputs.report }}
+        VERSIONCAM_ACTION_DIR: ${{ steps.setup.outputs.dir }}
+      run: |
+        # versioncam: what the Action uploads, from the report
+        node "$GITHUB_ACTION_PATH/scripts/files.mjs" --mode "$VERSIONCAM_ACTION_MODE" \
+          --report "$VERSIONCAM_ACTION_REPORT" --into "$VERSIONCAM_ACTION_DIR/failures"
+
+    - name: Upload the pictures of the failing clips
+      id: upload-failures
+      if: ${{ !cancelled() && inputs.mode == 'check' && steps.files.outputs.files != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: versioncam-failures
+        path: ${{ steps.files.outputs.files }}
+        if-no-files-found: warn
+
     - name: Write the job summary
       id: summary
       if: ${{ !cancelled() && steps.run.outcome == 'success' }}
@@ -116,11 +149,29 @@ runs:
         VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
         VERSIONCAM_ACTION_REPORT: ${{ steps.run.outputs.report }}
         VERSIONCAM_ACTION_STATUS: ${{ steps.run.outputs.status }}
+        VERSIONCAM_ACTION_ARTIFACT_URL: ${{ steps.upload-failures.outputs.artifact-url }}
         VERSIONCAM_ACTION_WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         # versioncam: the job summary
         node "$GITHUB_ACTION_PATH/scripts/summary.mjs" --mode "$VERSIONCAM_ACTION_MODE" \
           --report "$VERSIONCAM_ACTION_REPORT" --status "$VERSIONCAM_ACTION_STATUS" \
+          --artifact-url "$VERSIONCAM_ACTION_ARTIFACT_URL" \
+          --working-directory "$VERSIONCAM_ACTION_WORKING_DIRECTORY"
+
+    - name: Comment on the pull request
+      if: ${{ !cancelled() && steps.run.outcome == 'success' && inputs.mode == 'check' && inputs.comment == 'true' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VERSIONCAM_ACTION_REPORT: ${{ steps.run.outputs.report }}
+        VERSIONCAM_ACTION_STATUS: ${{ steps.run.outputs.status }}
+        VERSIONCAM_ACTION_ARTIFACT_URL: ${{ steps.upload-failures.outputs.artifact-url }}
+        VERSIONCAM_ACTION_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: |
+        # versioncam: the pull request comment of a failing check, or of one that passes again
+        node "$GITHUB_ACTION_PATH/scripts/comment.mjs" \
+          --report "$VERSIONCAM_ACTION_REPORT" --status "$VERSIONCAM_ACTION_STATUS" \
+          --artifact-url "$VERSIONCAM_ACTION_ARTIFACT_URL" \
           --working-directory "$VERSIONCAM_ACTION_WORKING_DIRECTORY"
 
     - name: Result
@@ -133,7 +184,7 @@ runs:
         VERSIONCAM_ACTION_HEADLINE: ${{ steps.summary.outputs.headline }}
         VERSIONCAM_ACTION_SESSION: ${{ steps.setup.outputs.storage-state }}
       run: |
-        # versioncam: pass or fail, and the job fails here, after the summary, when versioncam failed
+        # versioncam: pass or fail, and the job fails here, after the summary and the comment, when versioncam failed
         if [ -n "$VERSIONCAM_ACTION_SESSION" ]; then rm -f "$VERSIONCAM_ACTION_SESSION"; fi
         if [ "$VERSIONCAM_ACTION_STATUS" = "0" ]; then
           echo "result=pass" >> "$GITHUB_OUTPUT"
