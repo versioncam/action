@@ -1,0 +1,35 @@
+name: Release
+
+# Publishing release v1.2.3 moves the tag v1 to it, so that
+# `uses: petbul/versioncam-action@v1` is always the newest 1.x.y. The release
+# itself, and its Marketplace listing, are made by hand on github.com.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # to move the tag
+
+jobs:
+  major-tag:
+    name: Move the major tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move the major tag to this release
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          # Only a full release, vX.Y.Z: a pre-release or any other name
+          # leaves the major tag where it is.
+          if [[ "$PRERELEASE" != "true" && "$TAG" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+            major="v${BASH_REMATCH[1]}"
+          else
+            echo "$TAG is not a full vX.Y.Z release, so no major tag moves."
+            exit 0
+          fi
+          # GITHUB_SHA is the commit the release's tag points at.
+          git tag --force "$major" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$major"
+          echo "$major now points at $TAG ($GITHUB_SHA)."
