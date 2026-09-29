@@ -46,6 +46,12 @@ inputs:
       when a later run passes.
     required: false
     default: "true"
+  sequence:
+    description: >-
+      In render mode, also stitch the rendered clips into one piece, in the
+      order of the config's sequence when it has one.
+    required: false
+    default: "false"
   api:
     description: Where publish sends the recordings.
     required: false
@@ -103,6 +109,7 @@ runs:
       env:
         VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
         VERSIONCAM_ACTION_BIN: ${{ steps.setup.outputs.bin }}
+        VERSIONCAM_ACTION_SEQUENCE: ${{ inputs.sequence }}
         VERSIONCAM_ACTION_DIR: ${{ steps.setup.outputs.dir }}
         VERSIONCAM_ACTION_CLIPS: ${{ inputs.clips }}
         VERSIONCAM_ACTION_URL: ${{ inputs.url }}
@@ -125,7 +132,9 @@ runs:
             "$VERSIONCAM_ACTION_BIN" check --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
             ;;
           render)
-            "$VERSIONCAM_ACTION_BIN" render --sequence --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
+            sequence=()
+            if [ "$VERSIONCAM_ACTION_SEQUENCE" = "true" ]; then sequence=(--sequence); fi
+            "$VERSIONCAM_ACTION_BIN" render ${sequence[@]+"${sequence[@]}"} --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
             ;;
           publish)
             # GitHub's token for version.cam: asked for now, masked at once,

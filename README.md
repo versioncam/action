@@ -72,7 +72,7 @@ versioncam pins its Playwright, and two runs on one runner image produce the sam
 
 ### Render without publishing
 
-`render` turns what the check recorded into videos, and uploads them as the artifact `versioncam-renders`: an MP4, a WebM, a poster and a contact sheet of eight frames for each clip. Two clips or more are also stitched into one piece, in the order of the config's `sequence` when it has one. It encodes with ffmpeg, which it expects on the runner:
+`render` turns what the check recorded into videos, and uploads them as the artifact `versioncam-renders`: an MP4, a WebM, a poster and a contact sheet of eight frames for each clip. With `sequence: true`, the clips are also stitched into one piece, in the order of the config's `sequence` when it has one. It encodes with ffmpeg, which it expects on the runner:
 
 ```yaml
       - uses: petbul/versioncam-action@v1
@@ -94,6 +94,7 @@ versioncam pins its Playwright, and two runs on one runner image produce the sam
 | `storage-state` | none | A saved browser session, the JSON that `versioncam login` writes, from a secret. The Action writes it to a file only the job can read, gives versioncam its path as `VERSIONCAM_STORAGE_STATE`, and deletes it when it finishes. |
 | `install-browser` | `true` | Runs `versioncam install --with-deps` first, for the Chromium versioncam records with. `publish` needs no browser and skips it. |
 | `comment` | `true` | On a pull request, comment when the check fails, and rewrite the comment when a later run passes. |
+| `sequence` | `false` | In `render` mode, also stitch the clips into one piece. |
 | `api` | `https://api.version.cam` | Where `publish` sends the recordings. |
 | `github-token` | `github.token` | The token the pull request comment is written with. |
 
