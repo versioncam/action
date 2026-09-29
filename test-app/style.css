@@ -1,0 +1,156 @@
+:root {
+  color-scheme: light;
+  --ink: #1d2230;
+  --muted: #5d6475;
+  --line: #d9dde6;
+  --paper: #ffffff;
+  --ground: #f3f5f9;
+  --accent: #2f6fed;
+  --danger: #c23b3b;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+}
+
+header {
+  padding: 32px 48px 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.sub,
+.hint,
+.author {
+  color: var(--muted);
+}
+
+.sub {
+  margin: 4px 0 0;
+}
+
+main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 24px 48px 48px;
+}
+
+.panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+form {
+  display: grid;
+  gap: 8px;
+}
+
+label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+input {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.hint {
+  margin: 8px 0 4px;
+  font-size: 14px;
+}
+
+button {
+  font: inherit;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  justify-self: start;
+}
+
+button.quiet {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--line);
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.status {
+  min-height: 1.45em;
+  margin: 12px 0 0;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "title remove" "author remove";
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+li .title {
+  grid-area: title;
+  font-weight: 600;
+}
+
+li .author {
+  grid-area: author;
+  font-size: 14px;
+}
+
+li button {
+  grid-area: remove;
+}
+
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 360px;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dialog-actions button:first-child {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}

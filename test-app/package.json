@@ -1,0 +1,14 @@
+{
+  "name": "versioncam-action-test-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Action's own test app: a form, a list, a dialog and one clip.",
+  "scripts": {
+    "start": "node serve.mjs",
+    "check": "versioncam check"
+  },
+  "devDependencies": {
+    "versioncam": "^0.3.0"
+  }
+}

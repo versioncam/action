@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reading list</title>
+    <!-- No favicon request: the page asks the server for exactly three files. -->
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Reading list</h1>
+      <p class="sub">A deliberately boring page, so the clip is about the Action.</p>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="add-title">
+        <h2 id="add-title">Add a book</h2>
+        <form id="add-form" novalidate>
+          <label for="title">Title</label>
+          <input id="title" name="title" autocomplete="off" />
+
+          <label for="author">Author</label>
+          <input id="author" name="author" autocomplete="off" />
+
+          <p class="hint">New books go to the top of the list.</p>
+          <button type="submit">Add book</button>
+        </form>
+        <p class="status" id="form-status" role="status"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="list-title">
+        <h2 id="list-title">To read</h2>
+        <ul id="books" data-testid="books" aria-labelledby="list-title"></ul>
+      </section>
+    </main>
+
+    <dialog id="remove" aria-labelledby="remove-title">
+      <h2 id="remove-title">Remove this book?</h2>
+      <p id="remove-detail"></p>
+      <form method="dialog" class="dialog-actions">
+        <button value="keep">Keep it</button>
+        <button value="remove" class="danger">Remove</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

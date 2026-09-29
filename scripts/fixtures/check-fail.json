@@ -1,0 +1,16 @@
+{
+  "recorder": "0.3.0",
+  "clips": [
+    {
+      "id": "first",
+      "status": "fail",
+      "message": "Nothing matched getByRole('button', { name: 'Add book' }) within 15000ms at t=5.56s (frame 334). The clip expected it to be on screen by this point.",
+      "step": {
+        "index": 7,
+        "call": "click"
+      },
+      "t": 5.562398643424269,
+      "picture": "/home/runner/work/versioncam-action/versioncam-action/test-app/.versioncam/recordings/first/failure.png"
+    }
+  ]
+}

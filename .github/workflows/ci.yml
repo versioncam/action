@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Nothing is granted that a job does not name.
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    name: The scripts' tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test
+
+  # The Action on its own test app, as a customer's workflow would run it.
+  test-app:
+    name: The Action on its test app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # `npm install`, not `npm ci`: the test app has no lockfile until
+      # versioncam 0.3.0 is on npm (see .gitignore). Until then `^0.3.0`
+      # resolves to nothing, and this step fails, which is the truth.
+      - name: Install the test app
+        working-directory: test-app
+        run: npm install
+
+      - name: Check
+        id: check
+        uses: ./
+        with:
+          working-directory: test-app
+          # An empty saved session: the storage-state path, from the input to
+          # the file to the config to the browser, runs on every push.
+          storage-state: '{"cookies":[],"origins":[]}'
+
+      - name: The outputs say what happened
+        env:
+          CHECK_RESULT: ${{ steps.check.outputs.result }}
+          CHECK_REPORT: ${{ steps.check.outputs.report }}
+        run: |
+          test "$CHECK_RESULT" = pass
+          node -e '
+            const fs = require("node:fs");
+            const check = JSON.parse(fs.readFileSync(process.env.CHECK_REPORT, "utf8"));
+            if (!check.clips.every((c) => c.status === "pass")) throw new Error("a clip failed");
+            console.log(`checked ${check.clips.length} clip(s) with versioncam ${check.recorder}`);
+          '

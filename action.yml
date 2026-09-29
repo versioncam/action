@@ -1,0 +1,147 @@
+name: Versioncam
+description: Record, check and publish true product videos from your CI.
+author: Peter Bulovec
+branding:
+  icon: video
+  color: blue
+
+inputs:
+  mode:
+    description: >-
+      check records every clip and fails when one no longer matches the app.
+    required: false
+    default: check
+  working-directory:
+    description: The directory that holds versioncam.config.ts, from the repository's root.
+    required: false
+    default: .
+  clips:
+    description: Clip ids, separated by spaces. Empty means every clip.
+    required: false
+    default: ""
+  url:
+    description: >-
+      Where the app is already running, if it is. Given to versioncam as
+      VERSIONCAM_BASE_URL, for the config to read.
+    required: false
+    default: ""
+  storage-state:
+    description: >-
+      A saved browser session, the JSON that versioncam login writes, from a
+      secret. Written to a file only this job can read, whose path is given to
+      versioncam as VERSIONCAM_STORAGE_STATE, for the config to read.
+    required: false
+    default: ""
+  install-browser:
+    description: >-
+      Run versioncam install --with-deps first, for the Chromium versioncam
+      records with.
+    required: false
+    default: "true"
+
+outputs:
+  result:
+    description: pass or fail.
+    value: ${{ steps.result.outputs.result }}
+  report:
+    description: The path of the JSON report versioncam wrote, when it wrote one.
+    value: ${{ steps.run.outputs.report }}
+
+# A thin wrapper. versioncam does the work; the Action adds only what a
+# command line cannot, which so far is the job summary. Inputs reach scripts
+# through env, never through ${{ }} inside a script, so no input can become
+# shell code.
+runs:
+  using: composite
+  steps:
+    - name: Check the inputs and find the repository's versioncam
+      id: setup
+      shell: bash
+      env:
+        VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
+        VERSIONCAM_ACTION_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        VERSIONCAM_ACTION_INSTALL_BROWSER: ${{ inputs.install-browser }}
+        VERSIONCAM_ACTION_STORAGE_STATE: ${{ inputs.storage-state }}
+      run: |
+        # versioncam: the inputs and the repository's own versioncam, before anything runs
+        node "$GITHUB_ACTION_PATH/scripts/setup.mjs"
+
+    - name: Install the browser versioncam records with
+      if: inputs.install-browser == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VERSIONCAM_ACTION_BIN: ${{ steps.setup.outputs.bin }}
+      run: |
+        # versioncam install --with-deps: the Chromium this versioncam records with, and its system libraries
+        "$VERSIONCAM_ACTION_BIN" install --with-deps
+
+    - name: Run versioncam
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
+        VERSIONCAM_ACTION_BIN: ${{ steps.setup.outputs.bin }}
+        VERSIONCAM_ACTION_DIR: ${{ steps.setup.outputs.dir }}
+        VERSIONCAM_ACTION_CLIPS: ${{ inputs.clips }}
+        VERSIONCAM_ACTION_URL: ${{ inputs.url }}
+        VERSIONCAM_ACTION_SESSION: ${{ steps.setup.outputs.storage-state }}
+      run: |
+        # versioncam check: its output here as it comes, its exit status kept for the Action's last step
+        report="$VERSIONCAM_ACTION_DIR/$VERSIONCAM_ACTION_MODE.json"
+        IFS=$' \t\n' read -r -d '' -a clips <<< "$VERSIONCAM_ACTION_CLIPS" || true
+
+        # Set only when there is something in them: a config that reads
+        # `process.env.VERSIONCAM_BASE_URL ?? "http://localhost:5173"` must
+        # never be handed an empty string.
+        if [ -n "$VERSIONCAM_ACTION_URL" ]; then export VERSIONCAM_BASE_URL="$VERSIONCAM_ACTION_URL"; fi
+        if [ -n "$VERSIONCAM_ACTION_SESSION" ]; then export VERSIONCAM_STORAGE_STATE="$VERSIONCAM_ACTION_SESSION"; fi
+
+        status=0
+        case "$VERSIONCAM_ACTION_MODE" in
+          check)
+            "$VERSIONCAM_ACTION_BIN" check --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
+            ;;
+        esac
+
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        if [ -f "$report" ]; then echo "report=$report" >> "$GITHUB_OUTPUT"; fi
+
+    - name: Write the job summary
+      id: summary
+      if: ${{ !cancelled() && steps.run.outcome == 'success' }}
+      shell: bash
+      env:
+        VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
+        VERSIONCAM_ACTION_REPORT: ${{ steps.run.outputs.report }}
+        VERSIONCAM_ACTION_STATUS: ${{ steps.run.outputs.status }}
+        VERSIONCAM_ACTION_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: |
+        # versioncam: the job summary
+        node "$GITHUB_ACTION_PATH/scripts/summary.mjs" --mode "$VERSIONCAM_ACTION_MODE" \
+          --report "$VERSIONCAM_ACTION_REPORT" --status "$VERSIONCAM_ACTION_STATUS" \
+          --working-directory "$VERSIONCAM_ACTION_WORKING_DIRECTORY"
+
+    - name: Result
+      id: result
+      if: always()
+      shell: bash
+      env:
+        VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
+        VERSIONCAM_ACTION_STATUS: ${{ steps.run.outputs.status }}
+        VERSIONCAM_ACTION_HEADLINE: ${{ steps.summary.outputs.headline }}
+        VERSIONCAM_ACTION_SESSION: ${{ steps.setup.outputs.storage-state }}
+      run: |
+        # versioncam: pass or fail, and the job fails here, after the summary, when versioncam failed
+        if [ -n "$VERSIONCAM_ACTION_SESSION" ]; then rm -f "$VERSIONCAM_ACTION_SESSION"; fi
+        if [ "$VERSIONCAM_ACTION_STATUS" = "0" ]; then
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "result=fail" >> "$GITHUB_OUTPUT"
+        # No status means an earlier step stopped the Action and said why.
+        if [ -n "$VERSIONCAM_ACTION_STATUS" ]; then
+          echo "::error::${VERSIONCAM_ACTION_HEADLINE:-versioncam $VERSIONCAM_ACTION_MODE failed; its output above says why.}"
+          exit 1
+        fi

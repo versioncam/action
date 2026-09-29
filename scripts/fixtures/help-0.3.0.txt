@@ -1,0 +1,11 @@
+versioncam: record and render demo clips of a real app
+
+Record
+  versioncam record [id…]            drive the app and capture frames
+  versioncam check [id…]             record every clip; exit 1 if any breaks
+      --report <file>                and write each clip's result there, as JSON
+
+Publish
+  versioncam publish [id…]           send the recordings and their checks to version.cam
+      --dry-run                      print what would be sent, and send nothing
+      --report <file>                and write the living URLs there, as JSON
