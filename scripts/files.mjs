@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * What the Action uploads, from the report: the picture of the page each
- * failing clip stopped on, copied under the clip's name. Writes the `files`
- * output, one path a line, which is what actions/upload-artifact takes.
+ * What the Action uploads, from the report: for `check`, the picture of the
+ * page each failing clip stopped on, copied under the clip's name; for
+ * `render`, every file the render made. Writes the `files` output, one path a
+ * line, which is what actions/upload-artifact takes.
  *
  *   node files.mjs --mode check --report <file> --into <dir>
  */
@@ -25,6 +26,11 @@ export function artifactFiles(mode, report, into) {
       files.push(copy);
     }
     return files;
+  }
+  if (mode === "render") {
+    const made = (report.rendered ?? []).flatMap((clip) => clip.files ?? []);
+    if (report.sequence) made.push(report.sequence);
+    return made.filter((file) => existsSync(file));
   }
   return [];
 }

@@ -20,9 +20,9 @@ jobs:
           node-version: 22
       - run: node --test
 
-  # The Action on its own test app, as a customer's workflow would run it.
-  # On the acceptance branch that renames the button, the check fails here and
-  # comments on its pull request.
+  # The Action on its own test app, as a customer's workflow would run it:
+  # check, then render what the check recorded. On the acceptance branch that
+  # renames the button, the check fails here and comments on its pull request.
   test-app:
     name: The Action on its test app
     runs-on: ubuntu-latest
@@ -51,15 +51,33 @@ jobs:
           # the file to the config to the browser, runs on every push.
           storage-state: '{"cookies":[],"origins":[]}'
 
+      # render encodes with ffmpeg, which versioncam leaves to the system.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Render
+        id: render
+        uses: ./
+        with:
+          mode: render
+          working-directory: test-app
+          install-browser: false
+
       - name: The outputs say what happened
         env:
           CHECK_RESULT: ${{ steps.check.outputs.result }}
           CHECK_REPORT: ${{ steps.check.outputs.report }}
+          RENDER_RESULT: ${{ steps.render.outputs.result }}
+          RENDER_REPORT: ${{ steps.render.outputs.report }}
         run: |
           test "$CHECK_RESULT" = pass
+          test "$RENDER_RESULT" = pass
           node -e '
             const fs = require("node:fs");
             const check = JSON.parse(fs.readFileSync(process.env.CHECK_REPORT, "utf8"));
+            const render = JSON.parse(fs.readFileSync(process.env.RENDER_REPORT, "utf8"));
             if (!check.clips.every((c) => c.status === "pass")) throw new Error("a clip failed");
-            console.log(`checked ${check.clips.length} clip(s) with versioncam ${check.recorder}`);
+            const files = render.rendered.flatMap((r) => r.files);
+            if (files.length !== 4 || !files.every((f) => fs.existsSync(f))) throw new Error("render is missing files");
+            console.log(`checked ${check.clips.length} clip(s) with versioncam ${check.recorder}; rendered ${files.length} files`);
           '

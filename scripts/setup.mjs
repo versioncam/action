@@ -17,7 +17,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { error, isMain, setOutput } from "./actions.mjs";
 import { findRecorder, hasPublish, recorderVersion } from "./recorder.mjs";
 
-export const MODES = ["check"];
+export const MODES = ["check", "render"];
 export const INSTALL = "npm i -D versioncam@latest";
 
 /** A problem the Action stops for, in the sentence it stops with. */

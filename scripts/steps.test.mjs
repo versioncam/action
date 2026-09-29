@@ -78,6 +78,22 @@ test("a failing check's picture is uploaded under the clip's name", () => {
   assert.equal(readFileSync(join(dir, "failures", "first.png"), "utf8"), "png");
 });
 
+test("every file a render made is uploaded, and a missing report uploads nothing", () => {
+  const out = join(dir, "out");
+  mkdirSync(out, { recursive: true });
+  const files = ["first.mp4", "first.webm", "first-poster.png", "first-sheet.png"].map((f) => join(out, f));
+  for (const file of files) writeFileSync(file, "x");
+  const report = join(dir, "render.json");
+  writeFileSync(report, JSON.stringify({ outputDir: out, rendered: [{ id: "first", files }], sequence: null, failed: [] }));
+
+  const ran = step("files.mjs", ["--mode", "render", "--report", report, "--into", join(dir, "unused")]);
+  assert.equal(ran.outputs.files, files.join("\n"));
+
+  const none = step("files.mjs", ["--mode", "render", "--report", "", "--into", join(dir, "unused")]);
+  assert.equal(none.outputs.files, "");
+  assert.match(none.stdout, /Nothing to upload/);
+});
+
 test("the summary step writes the summary and the headline", () => {
   const checked = step("summary.mjs", [
     "--mode", "check",

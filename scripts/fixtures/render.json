@@ -1,0 +1,16 @@
+{
+  "outputDir": "/home/runner/work/versioncam-action/versioncam-action/test-app/.versioncam/out",
+  "rendered": [
+    {
+      "id": "first",
+      "files": [
+        "/home/runner/work/versioncam-action/versioncam-action/test-app/.versioncam/out/first.mp4",
+        "/home/runner/work/versioncam-action/versioncam-action/test-app/.versioncam/out/first.webm",
+        "/home/runner/work/versioncam-action/versioncam-action/test-app/.versioncam/out/first-poster.png",
+        "/home/runner/work/versioncam-action/versioncam-action/test-app/.versioncam/out/first-sheet.png"
+      ]
+    }
+  ],
+  "sequence": null,
+  "failed": []
+}

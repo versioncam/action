@@ -13,8 +13,9 @@ export const COMMENT_LIMIT = 60000;
 /** Past this, a failure's message is cut; the job log keeps all of it. */
 export const MESSAGE_LIMIT = 2000;
 
-/** What the Action calls the artifact it uploads. */
+/** What the Action calls the two artifacts it uploads. */
 export const FAILURES_ARTIFACT = "versioncam-failures";
+export const RENDERS_ARTIFACT = "versioncam-renders";
 
 /** "1 clip", "2 clips". */
 export function count(n, noun) {
@@ -67,6 +68,11 @@ export function message(text) {
   const s = String(text ?? "").trim() || "(no message)";
   if (s.length <= MESSAGE_LIMIT) return s;
   return `${s.slice(0, MESSAGE_LIMIT)}\n[cut here: the job log has the whole message]`;
+}
+
+/** Text for a table cell: one line, and no pipe to end the cell early. */
+function cell(text) {
+  return String(text).replace(/\r?\n/g, " ").replace(/\|/g, "\\|");
 }
 
 function link(label, url) {
@@ -191,8 +197,51 @@ export function checkPassed(report) {
   return Boolean(report) && (report.clips ?? []).every((c) => c.status !== "fail");
 }
 
+function basename(path) {
+  return String(path).split(/[\\/]/).pop();
+}
+
+/** The render, for the job summary: each clip and its files. */
+export function renderText(report, context) {
+  if (!report) {
+    return ["### Versioncam: nothing rendered", "", unfinished("render", context)].join("\n");
+  }
+  const rendered = report.rendered ?? [];
+  const failed = report.failed ?? [];
+  const title =
+    rendered.length === 0
+      ? "### Versioncam: nothing rendered"
+      : `### Versioncam: ${count(rendered.length, "clip")} rendered` +
+        (failed.length > 0 ? `, ${failed.length} failed` : "");
+  const lines = [title, ""];
+
+  if (rendered.length > 0) {
+    lines.push("| Clip | Files |", "|---|---|");
+    for (const clip of rendered) {
+      const files = (clip.files ?? []).map((f) => code(basename(f))).join(", ");
+      lines.push(`| ${cell(code(clip.id))} | ${cell(files)} |`);
+    }
+    lines.push("");
+    if (report.sequence) {
+      lines.push(`Stitched into one piece: ${code(basename(report.sequence))}.`, "");
+    }
+    lines.push(
+      context.artifactUrl
+        ? `Every file is in ${link(RENDERS_ARTIFACT, context.artifactUrl)}. A contact sheet shows eight frames of its clip at a glance.`
+        : "The files were not uploaded.",
+      "",
+    );
+  }
+  for (const failure of failed) {
+    lines.push(`**${code(failure.id)}** did not render:`, "", block(message(failure.message)), "");
+  }
+  lines.push(footer("Rendered in", context));
+  return lines.join("\n");
+}
+
 /** The summary of any mode. */
 export function summaryText(mode, report, context) {
+  if (mode === "render") return renderText(report, context);
   return checkText(report, context);
 }
 
@@ -209,6 +258,12 @@ export function headline(mode, report, status) {
     const verb = failed.length === 1 ? "matches" : "match";
     if (failed.length > 0) {
       return `${failed.length} of ${count(clips.length, "clip")} no longer ${verb} the app: ${failed.map((c) => c.id).join(", ")}.`;
+    }
+  }
+  if (mode === "render") {
+    const failed = report.failed ?? [];
+    if (failed.length > 0) {
+      return `${count(failed.length, "clip")} did not render: ${failed.map((f) => f.id).join(", ")}.`;
     }
   }
   return `versioncam ${mode} failed; its output above says why.`;

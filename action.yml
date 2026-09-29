@@ -9,6 +9,7 @@ inputs:
   mode:
     description: >-
       check records every clip and fails when one no longer matches the app.
+      render encodes what the last check recorded and uploads the videos.
     required: false
     default: check
   working-directory:
@@ -99,7 +100,7 @@ runs:
         VERSIONCAM_ACTION_URL: ${{ inputs.url }}
         VERSIONCAM_ACTION_SESSION: ${{ steps.setup.outputs.storage-state }}
       run: |
-        # versioncam check: its output here as it comes, its exit status kept for the Action's last step
+        # versioncam check or render: its output here as it comes, its exit status kept for the Action's last step
         report="$VERSIONCAM_ACTION_DIR/$VERSIONCAM_ACTION_MODE.json"
         IFS=$' \t\n' read -r -d '' -a clips <<< "$VERSIONCAM_ACTION_CLIPS" || true
 
@@ -113,6 +114,9 @@ runs:
         case "$VERSIONCAM_ACTION_MODE" in
           check)
             "$VERSIONCAM_ACTION_BIN" check --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
+            ;;
+          render)
+            "$VERSIONCAM_ACTION_BIN" render --sequence --report "$report" ${clips[@]+"${clips[@]}"} || status=$?
             ;;
         esac
 
@@ -141,6 +145,15 @@ runs:
         path: ${{ steps.files.outputs.files }}
         if-no-files-found: warn
 
+    - name: Upload the renders
+      id: upload-renders
+      if: ${{ !cancelled() && inputs.mode == 'render' && steps.files.outputs.files != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: versioncam-renders
+        path: ${{ steps.files.outputs.files }}
+        if-no-files-found: warn
+
     - name: Write the job summary
       id: summary
       if: ${{ !cancelled() && steps.run.outcome == 'success' }}
@@ -149,7 +162,7 @@ runs:
         VERSIONCAM_ACTION_MODE: ${{ inputs.mode }}
         VERSIONCAM_ACTION_REPORT: ${{ steps.run.outputs.report }}
         VERSIONCAM_ACTION_STATUS: ${{ steps.run.outputs.status }}
-        VERSIONCAM_ACTION_ARTIFACT_URL: ${{ steps.upload-failures.outputs.artifact-url }}
+        VERSIONCAM_ACTION_ARTIFACT_URL: ${{ steps.upload-failures.outputs.artifact-url || steps.upload-renders.outputs.artifact-url }}
         VERSIONCAM_ACTION_WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         # versioncam: the job summary

@@ -111,7 +111,7 @@ test("setup stops with one sentence for each thing that is wrong", () => {
     assert.fail("setup did not stop");
   };
 
-  assert.equal(stops({ VERSIONCAM_ACTION_MODE: "record" }), 'mode must be check, not "record".');
+  assert.equal(stops({ VERSIONCAM_ACTION_MODE: "record" }), 'mode must be check or render, not "record".');
   assert.equal(stops({ VERSIONCAM_ACTION_COMMENT: "yes" }), 'comment must be true or false, not "yes".');
   assert.equal(
     stops({ VERSIONCAM_ACTION_WORKING_DIRECTORY: "apps/api" }),
