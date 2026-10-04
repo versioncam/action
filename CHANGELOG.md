@@ -2,9 +2,9 @@
 
 What a user of the Action would want to know about each version, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semantic versioning](https://semver.org/). The tag `v1` always points at the newest 1.x.y release.
 
-## Unreleased
+## [1.0.0] - 2026-10-04
 
-The first version, to be released as v1.0.0.
+The first version.
 
 ### Added
 
