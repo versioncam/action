@@ -34,4 +34,4 @@ To try a versioncam that is not on npm yet, pack it and install the tarball with
 
 ## Releases
 
-A release is made by hand on github.com as `vX.Y.Z`, with the Marketplace box ticked for the first. The `Release` workflow then moves the major tag, `vX`, to it, which is what `uses: petbul/versioncam-action@v1` resolves to. Update `CHANGELOG.md` in the commit the release points at.
+A release is made by hand on github.com as `vX.Y.Z`, with the Marketplace box ticked for the first. The `Release` workflow then moves the major tag, `vX`, to it, which is what `uses: versioncam/action@v1` resolves to. Update `CHANGELOG.md` in the commit the release points at.

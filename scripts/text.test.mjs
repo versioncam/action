@@ -22,8 +22,8 @@ const report = (name) =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
 const context = {
   workingDirectory: "test-app",
-  runUrl: "https://github.com/petbul/versioncam-action/actions/runs/42",
-  artifactUrl: "https://github.com/petbul/versioncam-action/actions/runs/42/artifacts/7",
+  runUrl: "https://github.com/versioncam/action/actions/runs/42",
+  artifactUrl: "https://github.com/versioncam/action/actions/runs/42/artifacts/7",
 };
 
 test("a failing check names the clip, the step, the message and the recorder", () => {
@@ -35,10 +35,10 @@ test("a failing check names the clip, the step, the message and the recorder", (
   assert.match(text, /versioncam 0\.3\.0 in `test-app`/);
   assert.ok(
     text.includes(
-      "The page when it stopped: `first.png` in [versioncam-failures](https://github.com/petbul/versioncam-action/actions/runs/42/artifacts/7).",
+      "The page when it stopped: `first.png` in [versioncam-failures](https://github.com/versioncam/action/actions/runs/42/artifacts/7).",
     ),
   );
-  assert.ok(text.includes("([the run](https://github.com/petbul/versioncam-action/actions/runs/42))"));
+  assert.ok(text.includes("([the run](https://github.com/versioncam/action/actions/runs/42))"));
 });
 
 test("the comment is the summary's text behind a marker that finds it again", () => {
@@ -67,7 +67,7 @@ test("a check that passes again says so, and names what it checked", () => {
 test("a check with no report says it did not finish, and where to look", () => {
   const text = checkText(null, context);
   assert.match(text, /### Versioncam: the check did not finish/);
-  assert.match(text, /\[The job log\]\(https:\/\/github\.com\/petbul\/versioncam-action\/actions\/runs\/42\) says why\./);
+  assert.match(text, /\[The job log\]\(https:\/\/github\.com\/versioncam\/action\/actions\/runs\/42\) says why\./);
 });
 
 test("the step is named for every shape a failure can have", () => {
@@ -120,7 +120,7 @@ test("the render's summary lists each clip's files and links the artifact", () =
   const text = renderText(report("render.json"), context);
   assert.match(text, /^### Versioncam: 1 clip rendered$/m);
   assert.ok(text.includes("| `first` | `first.mp4`, `first.webm`, `first-poster.png`, `first-sheet.png` |"));
-  assert.ok(text.includes("[versioncam-renders](https://github.com/petbul/versioncam-action/actions/runs/42/artifacts/7)"));
+  assert.ok(text.includes("[versioncam-renders](https://github.com/versioncam/action/actions/runs/42/artifacts/7)"));
 
   const partly = { ...report("render.json"), sequence: "/o/out/sequence.mp4", failed: [{ id: "second", message: "no ffmpeg" }] };
   const both = renderText(partly, context);
@@ -133,16 +133,16 @@ test("the publish's summary gives each living URL, and the output lists them", (
   const published = report("publish.json");
   const text = publishText(published, context);
   assert.match(text, /^### Versioncam: 2 clips published$/m);
-  assert.ok(text.includes("To `petbul/versioncam-action` on https://api.version.cam."));
+  assert.ok(text.includes("To `versioncam/action` on https://api.version.cam."));
   assert.ok(
     text.includes(
-      "| `first` | https://clips.version.cam/petbul/versioncam-action/first | [7f3a9c1](https://clips.version.cam/petbul/versioncam-action/first@7f3a9c1) | pass |",
+      "| `first` | https://clips.version.cam/versioncam/action/first | [7f3a9c1](https://clips.version.cam/versioncam/action/first@7f3a9c1) | pass |",
     ),
   );
   assert.match(text, /\| fail, stale \|/);
   assert.equal(
     livingUrls(published),
-    "https://clips.version.cam/petbul/versioncam-action/first\nhttps://clips.version.cam/petbul/versioncam-action/second",
+    "https://clips.version.cam/versioncam/action/first\nhttps://clips.version.cam/versioncam/action/second",
   );
   assert.equal(livingUrls(null), "");
 });

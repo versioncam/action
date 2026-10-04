@@ -1,7 +1,7 @@
 name: Release
 
 # Publishing release v1.2.3 moves the tag v1 to it, so that
-# `uses: petbul/versioncam-action@v1` is always the newest 1.x.y. The release
+# `uses: versioncam/action@v1` is always the newest 1.x.y. The release
 # itself, and its Marketplace listing, are made by hand on github.com.
 on:
   release:

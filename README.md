@@ -29,7 +29,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: petbul/versioncam-action@v1
+      - uses: versioncam/action@v1
 
   # On main: record every clip, then publish the recordings to version.cam.
   publish:
@@ -45,8 +45,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: petbul/versioncam-action@v1
-      - uses: petbul/versioncam-action@v1
+      - uses: versioncam/action@v1
+      - uses: versioncam/action@v1
         if: ${{ !cancelled() }} # a clip that broke is published as broken
         with:
           mode: publish
@@ -65,7 +65,7 @@ versioncam pins its Playwright, and two runs on one runner image produce the sam
     container: mcr.microsoft.com/playwright:v1.59.1-noble
     steps:
       # ...
-      - uses: petbul/versioncam-action@v1
+      - uses: versioncam/action@v1
         with:
           install-browser: false
 ```
@@ -75,9 +75,9 @@ versioncam pins its Playwright, and two runs on one runner image produce the sam
 `render` turns what the check recorded into videos, and uploads them as the artifact `versioncam-renders`: an MP4, a WebM, a poster and a contact sheet of eight frames for each clip. With `sequence: true`, the clips are also stitched into one piece, in the order of the config's `sequence` when it has one. It encodes with ffmpeg, which it expects on the runner:
 
 ```yaml
-      - uses: petbul/versioncam-action@v1
+      - uses: versioncam/action@v1
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - uses: petbul/versioncam-action@v1
+      - uses: versioncam/action@v1
         with:
           mode: render
           install-browser: false # the check installed it
@@ -115,7 +115,7 @@ export default defineRecorder({
 ```
 
 ```yaml
-      - uses: petbul/versioncam-action@v1
+      - uses: versioncam/action@v1
         with:
           storage-state: ${{ secrets.VERSIONCAM_STORAGE_STATE }}
 ```
