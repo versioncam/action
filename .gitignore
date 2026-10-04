@@ -10,10 +10,4 @@ node_modules/
 **/.auth/
 *.har
 
-# The test app has no lockfile until versioncam 0.3.0 is on npm: one written
-# now would pin a tarball from a laptop, not the registry. When 0.3.0 is
-# published, delete this line, run `npm install` in test-app, commit the
-# lockfile, and switch CI's install to `npm ci`.
-test-app/package-lock.json
-
 .DS_Store

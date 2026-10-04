@@ -35,12 +35,11 @@ jobs:
         with:
           node-version: 22
 
-      # `npm install`, not `npm ci`: the test app has no lockfile until
-      # versioncam 0.3.0 is on npm (see .gitignore). Until then `^0.3.0`
-      # resolves to nothing, and this step fails, which is the truth.
+      # `npm ci`: the lockfile pins versioncam as the registry serves it, so
+      # every run installs the same recorder a customer would get.
       - name: Install the test app
         working-directory: test-app
-        run: npm install
+        run: npm ci
 
       - name: Check
         id: check
