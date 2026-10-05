@@ -1,0 +1,19 @@
+# Keeps every action this repository runs current: the workflows' and the
+# upload in action.yml, which runs in customers' jobs. Each is pinned to a
+# commit, so a tag moved by whoever controls an action cannot change what
+# runs; the version beside each pin is what Dependabot reads and rewrites.
+# Its pull request is the moment to read what changed, and CI runs the
+# Action with it before it can reach a release.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Minor and patch releases in one pull request a week. A new major comes
+    # in a pull request of its own, since it can change what a step does
+    # (upload-artifact's majors have changed its paths and defaults).
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

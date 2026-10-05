@@ -2,6 +2,12 @@
 
 What a user of the Action would want to know about each version, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semantic versioning](https://semver.org/). The tag `v1` always points at the newest 1.x.y release.
 
+## [Unreleased]
+
+### Changed
+
+- The artifact uploads run `actions/upload-artifact` pinned to the commit of its v4.6.2 instead of the tag `v4`, which is the same code today: a tag moved upstream can no longer change what runs in your job.
+
 ## [1.0.0] - 2026-10-04
 
 The first version.
