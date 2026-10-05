@@ -7,6 +7,7 @@ What a user of the Action would want to know about each version, newest first. T
 ### Changed
 
 - The artifact uploads run `actions/upload-artifact` pinned to the commit of its v4.6.2 instead of the tag `v4`, which is the same code today: a tag moved upstream can no longer change what runs in your job.
+- Each release's notes end with the line that pins its commit, `uses: versioncam/action@<commit> # vX.Y.Z`. The README's "Pin a release" says why you might.
 
 ## [1.0.0] - 2026-10-04
 

@@ -36,4 +36,6 @@ To try a versioncam that is not on npm yet, pack it and install the tarball with
 
 A release is made by hand on github.com as `vX.Y.Z`, with the Marketplace box ticked for the first. The `Release` workflow then moves the major tag, `vX`, to it, which is what `uses: versioncam/action@v1` resolves to. Update `CHANGELOG.md` in the commit the release points at.
 
+The workflow's job runs in the environment `release`, which holds it until a maintainer approves it and runs it only for tags named `v*.*.*`: open the run from the repository's Actions tab, read what it will move, and approve it. Moving `v1` changes the code in every customer's job that uses it, so it takes a second look, not only a published release. Once `vX` has moved, the job adds the release's pin line, `uses: versioncam/action@<commit> # vX.Y.Z`, to its notes.
+
 Every action a workflow or `action.yml` runs is pinned to a commit, with its version in a comment beside it; Dependabot proposes the next one each week. Keep it that way for any action you add.

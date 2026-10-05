@@ -8,12 +8,17 @@ on:
     types: [published]
 
 permissions:
-  contents: write # to move the tag
+  contents: write # to move the tag, and to add the pin to the release's notes
 
 jobs:
   major-tag:
     name: Move the major tag
     runs-on: ubuntu-latest
+    # Whoever moves v1 runs code in every customer's job that uses it, with
+    # that job's tokens. The environment holds this job until a maintainer
+    # approves it, and runs it only for a tag named like a release, so a
+    # published release is not enough by itself to move v1.
+    environment: release
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Move the major tag to this release
@@ -33,3 +38,22 @@ jobs:
           git tag --force "$major" "$GITHUB_SHA"
           git push --force origin "refs/tags/$major"
           echo "$major now points at $TAG ($GITHUB_SHA)."
+
+      # A workflow that names the release's commit runs exactly what was
+      # released, whoever moves a tag later (the README's "Pin a release").
+      # The notes give the line to copy, so nobody has to look the commit up.
+      - name: Add the pin to the release's notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          pin="uses: versioncam/action@$GITHUB_SHA # $TAG"
+          notes=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+          if [[ "$notes" == *"$pin"* ]]; then
+            echo "The notes already give the pin."
+            exit 0
+          fi
+          printf '%s\n\n## Pin this release\n\nTo run exactly this release, whoever moves a tag later:\n\n```yaml\n- %s\n```\n' \
+            "$notes" "$pin" > "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
+          echo "Added to the notes: $pin"

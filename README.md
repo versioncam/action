@@ -83,6 +83,16 @@ versioncam pins its Playwright, and two runs on one runner image produce the sam
           install-browser: false # the check installed it
 ```
 
+### Pin a release
+
+`@v1` follows the newest 1.x.y release, so a fix reaches your workflow without a change to it, and so does anything else released under `v1`. To run exactly one release, name its commit instead. Each release's notes give the line to copy:
+
+```yaml
+      - uses: versioncam/action@<the release's commit> # v1.0.0
+```
+
+A tag can be moved and a commit cannot, so a pinned workflow runs the code you chose, whoever moves a tag later. Dependabot keeps pins like this current: with `package-ecosystem: github-actions` in `.github/dependabot.yml`, it proposes each new release as a pull request that changes the commit and the version beside it, for you to read before it runs with your job's tokens. The same holds for every other action in the workflow, `actions/checkout` and `actions/setup-node` included. The Action pins the one action it runs itself, `actions/upload-artifact`, the same way.
+
 ## Inputs
 
 | Input | Default | What it does |
