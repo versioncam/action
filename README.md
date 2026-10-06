@@ -52,7 +52,7 @@ jobs:
           mode: publish
 ```
 
-In both jobs the Action runs first in its default mode, `check`: it records every clip, at full quality, and fails the job when one no longer matches the app. `publish` records nothing itself. It sends what the check recorded, a failure included, so every page that embeds a broken clip says so.
+In both jobs the Action runs first in its default mode, `check`: it records every clip, at full quality, and fails the job when one no longer matches the app. `publish` records nothing itself. It sends what the check recorded, a failure included, so version.cam knows when a clip broke.
 
 In a monorepo, install the app's dependencies where they live, and point the Action at the app with `working-directory: apps/web`.
 
@@ -138,7 +138,7 @@ export default defineRecorder({
 | `report` | The path of the JSON report versioncam wrote with `--report`, when it wrote one. |
 | `urls` | `publish` only: the living URLs, one a line. |
 
-Every mode also writes the job summary: the check's result, the files a render made, or the living URL of each published clip.
+Every mode also writes the job summary: the check's result, the files a render made, or the living URL of each published clip. After a publish it also names each clip that is broken on the default branch and the version your pages keep playing meanwhile, says when a private repository's clips are private and how to show them on a public page, and links the project on app.version.cam.
 
 ## The pull request comment
 

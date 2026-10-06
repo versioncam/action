@@ -9,6 +9,7 @@ import {
   parseStatus,
   pullRequestNumber,
   readJson,
+  repositoryOf,
   runUrl,
   setOutput,
 } from "./actions.mjs";
@@ -68,4 +69,16 @@ test("the run's page and the pull request come from the runner's variables", () 
   assert.equal(pullRequestNumber({ GITHUB_EVENT_PATH: event }), 12);
   writeFileSync(event, JSON.stringify({ ref: "refs/heads/main" }));
   assert.equal(pullRequestNumber({ GITHUB_EVENT_PATH: event }), null);
+});
+
+test("the repository's default branch and privacy come from the event, or are unknown", () => {
+  const event = join(dir, "event-repository.json");
+  writeFileSync(event, JSON.stringify({ repository: { default_branch: "trunk", private: false } }));
+  assert.deepEqual(repositoryOf({ GITHUB_EVENT_PATH: event }), { defaultBranch: "trunk", private: false });
+  // A payload without a repository, one that says it oddly, and no payload.
+  writeFileSync(event, JSON.stringify({ schedule: "0 6 * * *" }));
+  assert.deepEqual(repositoryOf({ GITHUB_EVENT_PATH: event }), { defaultBranch: null, private: null });
+  writeFileSync(event, JSON.stringify({ repository: { default_branch: "", private: "yes" } }));
+  assert.deepEqual(repositoryOf({ GITHUB_EVENT_PATH: event }), { defaultBranch: null, private: null });
+  assert.deepEqual(repositoryOf({}), { defaultBranch: null, private: null });
 });

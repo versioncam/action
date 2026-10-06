@@ -109,6 +109,21 @@ export function pullRequestNumber(env = process.env) {
   return Number.isInteger(number) ? number : null;
 }
 
+/**
+ * What the event's payload says of the repository: its default branch, and
+ * whether it is private. The runner's variables name the branch this run is
+ * on, which on a pull request is not the default one. Null for whatever the
+ * payload does not say, and for both outside a runner.
+ */
+export function repositoryOf(env = process.env) {
+  const repository = readJson(env.GITHUB_EVENT_PATH)?.repository;
+  const branch = repository?.default_branch;
+  return {
+    defaultBranch: typeof branch === "string" && branch !== "" ? branch : null,
+    private: typeof repository?.private === "boolean" ? repository.private : null,
+  };
+}
+
 /** Whether a module is the script node was asked to run, not an import. */
 export function isMain(moduleUrl) {
   const script = process.argv[1];

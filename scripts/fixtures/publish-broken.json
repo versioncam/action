@@ -1,0 +1,47 @@
+{
+  "api": "https://api.version.cam",
+  "project": "acme/shop",
+  "manage": "https://app.version.cam/acme/shop",
+  "visibility": "private",
+  "alerts": false,
+  "versions": [
+    {
+      "clip": "first",
+      "version": "ver_2c8h4n6p0r1s3t5v7w9x",
+      "url": "https://clips.version.cam/acme/shop/first",
+      "versionUrl": "https://clips.version.cam/acme/shop/first@9c4e1b7a2d3f",
+      "check": "pass",
+      "unchanged": true,
+      "stale": false,
+      "refused": null
+    },
+    {
+      "clip": "add-a-book",
+      "version": "ver_9d1e5f7g3h2j4k6m8n0q",
+      "url": "https://clips.version.cam/acme/shop/add-a-book",
+      "versionUrl": "https://clips.version.cam/acme/shop/add-a-book@9c4e1b7a2d3f",
+      "check": "fail",
+      "unchanged": false,
+      "stale": true,
+      "refused": null,
+      "playing": {
+        "version": "ver_6t8v0w2x4y6z8a0b2c4d",
+        "commit": "3f2a1c9e8d7b6a5f4e3d2c1b0a9f8e7d6c5b4a39",
+        "recordedAt": "2026-10-03T12:00:00.000Z"
+      }
+    },
+    {
+      "clip": "checkout",
+      "version": "ver_5a7b9c1d3e5f7g9h1j3k",
+      "url": "https://clips.version.cam/acme/shop/checkout",
+      "versionUrl": "https://clips.version.cam/acme/shop/checkout@9c4e1b7a2d3f",
+      "check": "fail",
+      "unchanged": false,
+      "stale": true,
+      "refused": null,
+      "playing": null
+    }
+  ],
+  "refused": [],
+  "error": null
+}

@@ -239,16 +239,144 @@ export function renderText(report, context) {
   return lines.join("\n");
 }
 
+/**
+ * Whether the service said what a broken clip's pages play meanwhile. One
+ * that says it keeps those pages quiet about the break, and the clip is
+ * called broken; an older one, whose pages still say the clip is stale,
+ * gives no `playing`, and its own word stays. A clip that never passed comes
+ * with null, which is an answer too: JSON has no undefined.
+ */
+function namesPlaying(version) {
+  return version.playing !== undefined;
+}
+
 /** What a published version's row says beside its check. */
 function publishedNote(version) {
   const notes = [version.check];
   if (version.unchanged) notes.push("unchanged");
-  if (version.stale) notes.push("stale");
+  if (version.stale) notes.push(namesPlaying(version) ? "broken" : "stale");
   if (version.refused) notes.push(`not stored: ${version.refused}`);
   return notes.join(", ");
 }
 
-/** The publish, for the job summary: each clip's living URL. */
+/** The months, as a day in a sentence names them. */
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * A time the service gave, ISO 8601 in UTC, as a sentence names its day:
+ * "3 October", or "3 October 2025" when it is not the year of `now`. In UTC,
+ * as the service keeps it and a runner's clock runs. Null for anything that
+ * is not such a time, since `Date` makes a day of almost any string.
+ */
+export function dayOf(time, now) {
+  if (typeof time !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(time)) return null;
+  const at = new Date(time);
+  if (Number.isNaN(at.getTime())) return null;
+  const day = `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]}`;
+  const year = at.getUTCFullYear();
+  return now instanceof Date && now.getUTCFullYear() !== year ? `${day} ${year}` : day;
+}
+
+/**
+ * An address from the service as the summary may print it: http or https,
+ * and parsed, so that a space or another scheme never reaches the Markdown.
+ * Null for anything else, and the line that would have linked it says less.
+ */
+function address(text) {
+  if (typeof text !== "string") return null;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A sentence that ends with an address when there is one, and a full stop when there is not. */
+function pointing(sentence, url) {
+  return url ? `${sentence}: ${url}` : `${sentence}.`;
+}
+
+/**
+ * A version as a person names it: seven characters of its commit, as
+ * version.cam's own pages do. The service's name for it, an id, only when
+ * there is no commit to shorten.
+ */
+function versionName(playing) {
+  if (typeof playing.commit === "string" && /^[0-9a-f]{7,}$/i.test(playing.commit)) {
+    return playing.commit.slice(0, 7);
+  }
+  return typeof playing.version === "string" && playing.version !== "" ? playing.version : null;
+}
+
+/**
+ * A clip broken on the default branch, and what its pages play meanwhile:
+ * the last version that passed, or nothing, for a clip that never passed.
+ * The service's `stale` is the default branch's word whichever branch this
+ * run published, so the branch named is the default one, as the event names
+ * it; a pull request's run is told that main is broken, not its own branch.
+ */
+function brokenLine(version, context) {
+  const branch = context.defaultBranch ? code(context.defaultBranch) : "the default branch";
+  const said = `**${code(version.clip)}** is broken on ${branch}.`;
+  const playing = version.playing;
+  if (!playing || typeof playing !== "object") {
+    return `${said} No version of it has passed yet, so nothing plays.`;
+  }
+  const day = dayOf(playing.recordedAt, context.now);
+  const name = versionName(playing);
+  const which = day ? `the version from ${day}` : "the last version that passed";
+  return `${said} Your pages keep playing ${which}${name ? ` (${code(name)})` : ""}.`;
+}
+
+/**
+ * What the service says of the project as a whole, once each and only when
+ * it says it: on a plan that tells nobody, what Pro would do about the clips
+ * just named broken (on a publish with none, there is nothing for it to
+ * do); that private clips play on no public page, and where that changes;
+ * and where the project is managed. An older service, or a versioncam whose
+ * report leaves these fields out, says none of them.
+ */
+function projectLines(report, broken, context) {
+  const manage = address(report.manage);
+  const page = manage ? manage.href.replace(/\/+$/, "") : null;
+  // A page of the project's own, from its path: a query or a fragment on
+  // the project's address belongs to that address, not to its settings.
+  const settings = manage ? `${manage.origin}${manage.pathname.replace(/\/+$/, "")}/settings` : null;
+  const lines = [];
+  if (report.alerts === false && broken > 0) {
+    const [owner] = String(report.project ?? "").split("/");
+    const upgrade = manage
+      ? `${manage.origin}/upgrade${owner ? `?account=${encodeURIComponent(owner)}` : ""}`
+      : null;
+    const them = broken === 1 ? "it is" : "they are";
+    lines.push(
+      pointing(`Pro tells your team by email or Slack and keeps track until ${them} fixed`, upgrade),
+    );
+  }
+  if (report.visibility === "private") {
+    // Like the repository only when the event says the repository is
+    // private: the owner of a public one may have closed its clips.
+    const like = context.repositoryPrivate === true ? ", like the repository" : "";
+    lines.push(
+      `These clips are private${like}. ` +
+        pointing("To show them on a public page, make them public or unlisted", settings),
+    );
+  }
+  if (page) lines.push(`Manage this project: ${page}`);
+  return lines;
+}
+
+/**
+ * The publish, for the job summary: each clip's living URL, then what the
+ * service says beyond the table, each line only when its answer carries what
+ * the line needs. For those lines `context` adds what the event says of the
+ * repository, `defaultBranch` and `repositoryPrivate`, and `now`, for
+ * whether a day needs its year.
+ */
 export function publishText(report, context) {
   if (!report) {
     return ["### Versioncam: nothing published", "", unfinished("publish", context)].join("\n");
@@ -269,6 +397,9 @@ export function publishText(report, context) {
     }
     lines.push("");
   }
+  const broken = versions.filter((version) => version.stale && namesPlaying(version));
+  for (const version of broken) lines.push(brokenLine(version, context), "");
+  for (const line of projectLines(report, broken.length, context)) lines.push(line, "");
   lines.push(footer("Published from", context));
   return lines.join("\n");
 }

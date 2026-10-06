@@ -130,3 +130,22 @@ test("the summary step writes the summary, the headline and, for publish, the UR
   assert.equal(published.outputs.urls.split("\n").length, 2);
   assert.match(published.summary, /\| Clip \| Living URL \| This version \| Check \|/);
 });
+
+test("the summary step names the default branch and the repository's privacy as the event gives them", () => {
+  // A pull request's run, on a repository whose default branch is trunk:
+  // the broken clip is trunk's, whatever branch the run is on.
+  const event = join(dir, "event-pull-request.json");
+  writeFileSync(
+    event,
+    JSON.stringify({ pull_request: { number: 3 }, repository: { default_branch: "trunk", private: true } }),
+  );
+  const published = step(
+    "summary.mjs",
+    ["--mode", "publish", "--report", join(here, "fixtures", "publish-broken.json"), "--status", "0"],
+    { GITHUB_EVENT_PATH: event, GITHUB_REF_NAME: "3/merge", GITHUB_HEAD_REF: "rename-the-button" },
+  );
+  assert.equal(published.status, 0, published.stdout + published.stderr);
+  assert.match(published.summary, /^\*\*`add-a-book`\*\* is broken on `trunk`\. Your pages keep playing/m);
+  assert.match(published.summary, /^These clips are private, like the repository\./m);
+  assert.equal(published.outputs.urls.split("\n").length, 3);
+});

@@ -7,6 +7,7 @@ import {
   checkText,
   code,
   commentBody,
+  dayOf,
   directory,
   headline,
   livingUrls,
@@ -24,6 +25,18 @@ const context = {
   workingDirectory: "test-app",
   runUrl: "https://github.com/versioncam/action/actions/runs/42",
   artifactUrl: "https://github.com/versioncam/action/actions/runs/42/artifacts/7",
+};
+
+/**
+ * A publish's context as the summary step builds it on a push to a private
+ * repository's main: what the event says of the repository, and a today in
+ * the same year as the fixture's versions.
+ */
+const pushed = {
+  ...context,
+  defaultBranch: "main",
+  repositoryPrivate: true,
+  now: new Date("2026-10-06T09:00:00.000Z"),
 };
 
 test("a failing check names the clip, the step, the message and the recorder", () => {
@@ -147,6 +160,142 @@ test("the publish's summary gives each living URL, and the output lists them", (
   assert.equal(livingUrls(null), "");
 });
 
+test("without the service's newer fields, the publish's summary is the one it always was", () => {
+  const always = [
+    "### Versioncam: 2 clips published",
+    "",
+    "To `versioncam/action` on https://api.version.cam.",
+    "",
+    "| Clip | Living URL | This version | Check |",
+    "|---|---|---|---|",
+    "| `first` | https://clips.version.cam/versioncam/action/first | [7f3a9c1](https://clips.version.cam/versioncam/action/first@7f3a9c1) | pass |",
+    "| `second` | https://clips.version.cam/versioncam/action/second | [b21e04d](https://clips.version.cam/versioncam/action/second@b21e04d) | fail, stale |",
+    "",
+    "<sub>Published from `test-app` ([the run](https://github.com/versioncam/action/actions/runs/42)).</sub>",
+  ].join("\n");
+  assert.equal(publishText(report("publish.json"), context), always);
+  // What the event says of the repository changes none of it.
+  assert.equal(publishText(report("publish.json"), pushed), always);
+});
+
+test("a broken clip says what the public still sees, and the summary where the project is managed", () => {
+  assert.equal(
+    publishText(report("publish-broken.json"), pushed),
+    [
+      "### Versioncam: 3 clips published",
+      "",
+      "To `acme/shop` on https://api.version.cam.",
+      "",
+      "| Clip | Living URL | This version | Check |",
+      "|---|---|---|---|",
+      "| `first` | https://clips.version.cam/acme/shop/first | [ver_2c8h4n6p0r1s3t5v7w9x](https://clips.version.cam/acme/shop/first@9c4e1b7a2d3f) | pass, unchanged |",
+      "| `add-a-book` | https://clips.version.cam/acme/shop/add-a-book | [ver_9d1e5f7g3h2j4k6m8n0q](https://clips.version.cam/acme/shop/add-a-book@9c4e1b7a2d3f) | fail, broken |",
+      "| `checkout` | https://clips.version.cam/acme/shop/checkout | [ver_5a7b9c1d3e5f7g9h1j3k](https://clips.version.cam/acme/shop/checkout@9c4e1b7a2d3f) | fail, broken |",
+      "",
+      "**`add-a-book`** is broken on `main`. Your pages keep playing the version from 3 October (`3f2a1c9`).",
+      "",
+      "**`checkout`** is broken on `main`. No version of it has passed yet, so nothing plays.",
+      "",
+      "Pro tells your team by email or Slack and keeps track until they are fixed: https://app.version.cam/upgrade?account=acme",
+      "",
+      "These clips are private, like the repository. To show them on a public page, make them public or unlisted: https://app.version.cam/acme/shop/settings",
+      "",
+      "Manage this project: https://app.version.cam/acme/shop",
+      "",
+      "<sub>Published from `test-app` ([the run](https://github.com/versioncam/action/actions/runs/42)).</sub>",
+    ].join("\n"),
+  );
+});
+
+test("a plan that tells people, and public clips, leave only the broken clip and the project's page", () => {
+  const paid = { ...report("publish-broken.json"), alerts: true, visibility: "public" };
+  const text = publishText(paid, pushed);
+  assert.match(text, /\*\*`add-a-book`\*\* is broken on `main`\./);
+  assert.match(text, /^Manage this project: https:\/\/app\.version\.cam\/acme\/shop$/m);
+  assert.doesNotMatch(text, /Pro tells/);
+  assert.doesNotMatch(text, /private/);
+});
+
+test("Pro's line is said once, of the clips just named broken, and only when one is", () => {
+  const broken = report("publish-broken.json");
+  const one = { ...broken, versions: broken.versions.slice(0, 2) };
+  const text = publishText(one, pushed);
+  assert.equal(text.match(/Pro tells/g).length, 1);
+  assert.match(text, /keeps track until it is fixed: https:\/\/app\.version\.cam\/upgrade\?account=acme$/m);
+
+  // Nothing broken, nothing for Pro to do: the private note and the
+  // project's page stay.
+  const passing = { ...broken, versions: broken.versions.slice(0, 1) };
+  const quiet = publishText(passing, pushed);
+  assert.doesNotMatch(quiet, /Pro tells|is broken/);
+  assert.match(quiet, /^These clips are private, like the repository\./m);
+  assert.match(quiet, /^Manage this project: /m);
+});
+
+test("a broken clip's line names what the service gave, and only that", () => {
+  const broken = report("publish-broken.json");
+  const [, clip] = broken.versions;
+  const lineOf = (playing, at = pushed) =>
+    publishText({ ...broken, versions: [{ ...clip, playing }] }, at).split("\n").find((l) => l.startsWith("**"));
+
+  // A version from another year names its year.
+  assert.equal(
+    lineOf({ ...clip.playing, recordedAt: "2025-10-03T12:00:00.000Z" }),
+    "**`add-a-book`** is broken on `main`. Your pages keep playing the version from 3 October 2025 (`3f2a1c9`).",
+  );
+  // No time, or no commit: the line says less, never something made up.
+  assert.equal(
+    lineOf({ ...clip.playing, recordedAt: null }),
+    "**`add-a-book`** is broken on `main`. Your pages keep playing the last version that passed (`3f2a1c9`).",
+  );
+  assert.equal(
+    lineOf({ version: "ver_6t8v0w2x4y6z8a0b2c4d", recordedAt: "2026-10-03T12:00:00.000Z" }),
+    "**`add-a-book`** is broken on `main`. Your pages keep playing the version from 3 October (`ver_6t8v0w2x4y6z8a0b2c4d`).",
+  );
+  // An event that names no default branch: the default branch, unnamed.
+  assert.equal(
+    lineOf(clip.playing, { ...pushed, defaultBranch: null }),
+    "**`add-a-book`** is broken on the default branch. Your pages keep playing the version from 3 October (`3f2a1c9`).",
+  );
+});
+
+test("private clips of a public repository are private, but not like the repository", () => {
+  const text = publishText(report("publish-broken.json"), { ...pushed, repositoryPrivate: false });
+  assert.match(
+    text,
+    /^These clips are private\. To show them on a public page, make them public or unlisted: https:\/\/app\.version\.cam\/acme\/shop\/settings$/m,
+  );
+  assert.doesNotMatch(text, /like the repository/);
+});
+
+test("an address the service gave that is not the web's is never printed", () => {
+  const odd = { ...report("publish-broken.json"), manage: "javascript:alert(1)" };
+  const text = publishText(odd, pushed);
+  assert.doesNotMatch(text, /javascript|Manage this project/);
+  assert.match(text, /^Pro tells your team by email or Slack and keeps track until they are fixed\.$/m);
+  assert.match(text, /make them public or unlisted\.$/m);
+});
+
+test("the project's settings are its address and /settings, however the address ends", () => {
+  for (const manage of ["https://app.version.cam/acme/shop/", "https://app.version.cam/acme/shop?from=ci#clips"]) {
+    const text = publishText({ ...report("publish-broken.json"), manage }, pushed);
+    assert.match(text, /make them public or unlisted: https:\/\/app\.version\.cam\/acme\/shop\/settings$/m);
+    assert.match(text, /until they are fixed: https:\/\/app\.version\.cam\/upgrade\?account=acme$/m);
+  }
+});
+
+test("a day is said as a person says it, in UTC, and only of a time", () => {
+  const october = new Date("2026-10-06T09:00:00.000Z");
+  assert.equal(dayOf("2026-10-03T12:00:00.000Z", october), "3 October");
+  assert.equal(dayOf("2026-01-31T23:59:59.999Z", october), "31 January");
+  assert.equal(dayOf("2025-12-24T00:00:00.000Z", october), "24 December 2025");
+  // Without a today, no year is told.
+  assert.equal(dayOf("2025-12-24T00:00:00.000Z"), "24 December");
+  for (const notATime of ["3 October", "2026-10-03", "2026-13-45T00:00:00Z", "", null, undefined, 1759492800000]) {
+    assert.equal(dayOf(notATime, october), null, String(notATime));
+  }
+});
+
 test("the line a failing job ends with", () => {
   assert.equal(headline("check", report("check-fail.json"), 1), "1 of 1 clip no longer matches the app: first.");
   assert.equal(headline("check", report("check-pass.json"), 0), "");
@@ -168,6 +317,8 @@ test("nothing the Action writes has a long dash in it", () => {
     renderText(report("render.json"), context),
     renderText(null, context),
     publishText(report("publish.json"), context),
+    publishText(report("publish-broken.json"), pushed),
+    publishText(report("publish-broken.json"), { ...context, repositoryPrivate: false }),
     publishText(null, context),
   ];
   for (const text of texts) assert.doesNotMatch(text, /[\u2013\u2014]/);

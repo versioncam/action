@@ -14,6 +14,7 @@ import {
   isMain,
   parseStatus,
   readJson,
+  repositoryOf,
   runUrl,
   setOutput,
 } from "./actions.mjs";
@@ -23,10 +24,16 @@ if (isMain(import.meta.url)) {
   const args = flags(process.argv.slice(2));
   const mode = args.mode;
   const report = readJson(args.report);
+  const repository = repositoryOf();
   const context = {
     workingDirectory: args["working-directory"] ?? ".",
     artifactUrl: typeof args["artifact-url"] === "string" ? args["artifact-url"] : null,
     runUrl: runUrl(),
+    // For publish: the branch a broken clip is broken on, whether "private,
+    // like the repository" is true, and today, for whether a day needs its year.
+    defaultBranch: repository.defaultBranch,
+    repositoryPrivate: repository.private,
+    now: new Date(),
   };
   appendSummary(summaryText(mode, report, context));
   if (mode === "publish") setOutput("urls", livingUrls(report));

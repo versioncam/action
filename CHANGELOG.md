@@ -4,6 +4,10 @@ What a user of the Action would want to know about each version, newest first. T
 
 ## [Unreleased]
 
+### Added
+
+- The publish summary says what version.cam says about the project. Each clip that is broken on the default branch gets a line with the version your pages keep playing meanwhile, or that none has passed yet. The summary links the project on app.version.cam, says when a private repository's clips are private and how to show them on a public page, and, on a plan that tells nobody when a clip breaks, what Pro would do. The table says `broken` where it said `stale`. Each line appears only when version.cam's answer, as your versioncam reports it, carries what the line needs, so with an older service or versioncam the summary is what it was.
+
 ### Changed
 
 - The artifact uploads run `actions/upload-artifact` pinned to the commit of its v4.6.2 instead of the tag `v4`, which is the same code today: a tag moved upstream can no longer change what runs in your job.
