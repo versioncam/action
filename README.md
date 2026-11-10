@@ -105,6 +105,9 @@ Someone can move a tag, but nobody can move a commit, so a pinned workflow keeps
 | `working-directory` | `.` | The directory that holds `versioncam.config.ts`, from the repository's root. |
 | `clips` | every clip | Clip ids, separated by spaces. |
 | `url` | none | The app's address, if it is already running somewhere. The Action passes it to versioncam as `VERSIONCAM_BASE_URL`, for your config to read. |
+| `deployment` | none | Record against this commit's deployment: the GitHub deployment environment to wait for, such as `Preview` or `Production`. See *Record a deployed preview*. |
+| `status-context` | none | For a host that reports a commit status instead of a deployment, such as Netlify: the status to wait for, such as `netlify/my-site/deploy-preview`. See *Record a deployed preview*. |
+| `deployment-timeout` | `15` | How many minutes to wait for that deployment or status before the job fails. |
 | `storage-state` | none | A saved browser session from a secret: the JSON that `versioncam login` writes. The Action writes it to a file only the job can read, gives versioncam its path as `VERSIONCAM_STORAGE_STATE`, and deletes it when it finishes. |
 | `install-browser` | `true` | Runs `versioncam install --with-deps` first, for the Chromium versioncam records with. `publish` doesn't need a browser and skips this. |
 | `comment` | `true` | On a pull request, comments when the check fails, and updates the comment when a later run passes. |
@@ -133,6 +136,59 @@ export default defineRecorder({
         with:
           storage-state: ${{ secrets.VERSIONCAM_STORAGE_STATE }}
 ```
+
+## Record a deployed preview
+
+If your app doesn't start in a runner (it needs a database, queues, other services), record it where it already runs: the preview your host deploys for each pull request, and the production deployment of each push. Hosts that report to GitHub's Deployments API, Vercel among them, work with the `deployment` input. The Action waits for this commit's deployment of that environment to succeed, then gives its address to versioncam as `VERSIONCAM_BASE_URL`.
+
+```yaml
+permissions:
+  contents: read
+  deployments: read # to find the commit's deployment
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-node@v4
+    with:
+      node-version: 22
+      cache: npm
+  - run: npm ci
+  - uses: versioncam/action@v1
+    with:
+      deployment: Preview # Production on a push to your default branch
+    env:
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+```
+
+- On a pull request the Action waits for the deployment of the branch's head commit, which is what your host built. On a push it waits for the pushed commit's.
+- `deployment` is matched as a prefix and ignores case, for a host that adds a project's name to the environment in a monorepo. If no deployment of that environment is ready in time, the job fails and names the environments GitHub does have for the commit.
+- A failed deployment fails the job with a link to its log.
+- `url` wins over `deployment`. Give one or the other.
+- Only `check` waits. `render` and `publish` use what the last check recorded.
+
+Netlify doesn't create GitHub deployments. It reports a commit status on each pull request, `netlify/<site>/deploy-preview`, so give `status-context` instead, with `statuses: read` in place of `deployments: read`. The Action waits for that status to succeed and takes its `target_url`, which is then the preview's address. (While the deploy is pending, the status points at Netlify's dashboard, which the Action never uses.)
+
+```yaml
+  - uses: versioncam/action@v1
+    with:
+      status-context: netlify/my-site/deploy-preview
+```
+
+Netlify reports no status for a push to your default branch, so record that job against your site's production address with `url:`. That records whatever is deployed when the job runs, which may still be the previous commit's build.
+
+Your config reads the address and sends what the host's protection needs. For a Vercel preview with Deployment Protection, that is the project's automation bypass secret, sent only to the app (versioncam 0.8.0 or newer):
+
+```ts
+export default defineRecorder({
+  baseUrl: process.env.VERSIONCAM_BASE_URL ?? "http://localhost:3000",
+  headers: {
+    "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+  },
+});
+```
+
+versioncam's README has the rest under *Record a deployed preview*: the secrets, signing in, replaying data that changes, and the hosts we have tried. `npx versioncam ci --deployed` writes the whole workflow.
 
 ## Outputs
 

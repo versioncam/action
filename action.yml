@@ -27,6 +27,28 @@ inputs:
       VERSIONCAM_BASE_URL, for the config to read.
     required: false
     default: ""
+  deployment:
+    description: >-
+      Record against this commit's deployment: the GitHub deployment
+      environment to wait for, for example Preview or Production, matched as
+      a prefix and ignoring case. Its address is given to versioncam as
+      VERSIONCAM_BASE_URL. On a pull request the commit is the branch's head.
+      Needs deployments: read. An explicit url wins over it.
+    required: false
+    default: ""
+  status-context:
+    description: >-
+      For a host that reports a commit status instead of a deployment, such
+      as Netlify: the status context to wait for, for example
+      netlify/my-site/deploy-preview, matched as a prefix. The address is
+      the target_url of its success. Needs statuses: read. Use deployment or
+      status-context, not both.
+    required: false
+    default: ""
+  deployment-timeout:
+    description: Minutes to wait for that deployment or status before failing.
+    required: false
+    default: "15"
   storage-state:
     description: >-
       A saved browser session, the JSON that versioncam login writes, from a
@@ -118,6 +140,20 @@ runs:
           exit "$code"
         fi
 
+    # Only a check records, so only a check waits; an explicit url wins.
+    - name: Wait for the commit's deployment
+      id: deployment
+      if: (inputs.deployment != '' || inputs.status-context != '') && inputs.url == '' && inputs.mode == 'check'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VERSIONCAM_ACTION_DEPLOYMENT: ${{ inputs.deployment }}
+        VERSIONCAM_ACTION_STATUS_CONTEXT: ${{ inputs.status-context }}
+        VERSIONCAM_ACTION_DEPLOYMENT_TIMEOUT: ${{ inputs.deployment-timeout }}
+      run: |
+        # versioncam: the address of this commit's deployment, once it is ready
+        node "$GITHUB_ACTION_PATH/scripts/deployment.mjs"
+
     - name: Run versioncam
       id: run
       shell: bash
@@ -128,7 +164,7 @@ runs:
         VERSIONCAM_ACTION_SEQUENCE: ${{ inputs.sequence }}
         VERSIONCAM_ACTION_DIR: ${{ steps.setup.outputs.dir }}
         VERSIONCAM_ACTION_CLIPS: ${{ inputs.clips }}
-        VERSIONCAM_ACTION_URL: ${{ inputs.url }}
+        VERSIONCAM_ACTION_URL: ${{ inputs.url || steps.deployment.outputs.url }}
         VERSIONCAM_ACTION_SESSION: ${{ steps.setup.outputs.storage-state }}
         VERSIONCAM_ACTION_API: ${{ inputs.api }}
       run: |

@@ -2,6 +2,13 @@
 
 What a user of the Action would want to know about each version, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semantic versioning](https://semver.org/). The tag `v1` always points at the newest 1.x.y release.
 
+## [Unreleased]
+
+### Added
+
+- The `deployment` input records against this commit's deployment: the Action waits for the GitHub deployment of that environment (`Preview`, `Production`) to succeed and gives its address to versioncam as `VERSIONCAM_BASE_URL`. On a pull request it waits for the branch's head commit, which is what your host built. The environment is matched as a prefix, ignoring case. A failed deployment fails the job with its log, and if none is ready in time, the job fails and names the environments GitHub does have. `deployment-timeout` sets the wait, 15 minutes by default. The job needs `deployments: read`. An explicit `url` wins.
+- The `status-context` input does the same for a host that reports a commit status instead of a deployment, such as Netlify (`netlify/<site>/deploy-preview`): the Action waits for that status to succeed and records against its `target_url`. The job needs `statuses: read`.
+
 ## [1.1.2] - 2026-10-31
 
 The install step survives GitHub's move of `ubuntu-latest` to Ubuntu 26.04. Nothing else changes.
