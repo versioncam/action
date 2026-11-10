@@ -2,7 +2,9 @@
 
 What a user of the Action would want to know about each version, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [semantic versioning](https://semver.org/). The tag `v1` always points at the newest 1.x.y release.
 
-## [Unreleased]
+## [1.2.0] - 2026-11-10
+
+The Action records against the commit's deployment, for an app that does not start in a runner. A workflow that does not use the new inputs runs exactly as before.
 
 ### Added
 
