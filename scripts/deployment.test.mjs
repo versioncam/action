@@ -4,7 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { commitOf, deployment, stateOf, timeoutOf, waitForDeployment, waitForStatus } from "./deployment.mjs";
+import {
+  comparable,
+  commitOf,
+  deployment,
+  stateOf,
+  timeoutOf,
+  VERCEL_GRACE_MS,
+  waitForDeployment,
+  waitForStatus,
+} from "./deployment.mjs";
 import { client } from "./github.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "versioncam-deployment-test-"));
@@ -18,7 +27,7 @@ const MERGE = "2222222bbbbbbb";
  * poll, a list of deployments with their statuses, so a test can have a
  * deployment appear, wait and finish.
  */
-function fakeGitHub(script) {
+function fakeGitHub(script, commitStatuses = null) {
   let poll = 0;
   const calls = [];
   const fetch = async (url, init) => {
@@ -37,6 +46,11 @@ function fakeGitHub(script) {
     if (pathname.endsWith("/deployments")) {
       poll += 1;
       return answer(now.map(({ statuses: _, ...d }) => d));
+    }
+    // The commit's own statuses, when the test gives them; otherwise the
+    // job may not read them, as without `statuses: read`.
+    if (/\/commits\/[^/]+\/statuses$/.test(pathname) && commitStatuses) {
+      return answer(commitStatuses);
     }
     return answer({ message: "Not Found" }, 404);
   };
@@ -113,13 +127,14 @@ test("a success later marked inactive is still the commit's deployment", () => {
 });
 
 test("matches the environment as a prefix, ignoring case, and takes the newest", async () => {
-  // A monorepo's host names one environment per project.
+  // Vercel names one environment per project, with an en dash, as on the
+  // test repository on 2026-11-10: "Preview \u2013 versioncam-preview-test-tzvn".
   const gh = fakeGitHub([
     [
-      preview(1, [{ state: "success", environment_url: "https://web-1.test" }], "Preview - web", "2026-11-10T10:01:00Z"),
-      preview(2, [{ state: "success", environment_url: "https://docs-old.test" }], "Preview - docs", "2026-11-10T10:02:00Z"),
-      preview(3, [{ state: "success", environment_url: "https://docs-new.test" }], "Preview - docs", "2026-11-10T10:03:00Z"),
-      preview(4, [{ state: "success", environment_url: "https://prod.test" }], "Production - docs", "2026-11-10T10:04:00Z"),
+      preview(1, [{ state: "success", environment_url: "https://web-1.test" }], "Preview \u2013 web", "2026-11-10T10:01:00Z"),
+      preview(2, [{ state: "success", environment_url: "https://docs-old.test" }], "Preview \u2013 docs", "2026-11-10T10:02:00Z"),
+      preview(3, [{ state: "success", environment_url: "https://docs-new.test" }], "Preview \u2013 docs", "2026-11-10T10:03:00Z"),
+      preview(4, [{ state: "success", environment_url: "https://prod.test" }], "Production \u2013 docs", "2026-11-10T10:04:00Z"),
     ],
   ]);
   const url = await waitForDeployment({
@@ -132,6 +147,12 @@ test("matches the environment as a prefix, ignoring case, and takes the newest",
     log: () => undefined,
   });
   assert.equal(url, "https://docs-new.test");
+});
+
+test("a hyphen, an en dash and spaces compare alike", () => {
+  assert.equal(comparable("Preview \u2013 versioncam-preview-test"), "preview versioncam preview test");
+  assert.equal(comparable("preview - versioncam-preview-test "), "preview versioncam preview test");
+  assert.equal(comparable("Production"), "production");
 });
 
 test("a failed deployment fails the step, with its log", async () => {
@@ -189,6 +210,52 @@ test("with no deployment at all, it says the host may not create them", async ()
     }),
     /GitHub has no deployment for this commit at all\. Check that your host creates GitHub deployments/,
   );
+});
+
+test("Vercel deployed the commit but made no GitHub deployment: it says which setting, within a minute", async () => {
+  // As on the test repository on 2026-11-10, before deployment_status
+  // Events was turned on: a commit status, no deployment.
+  const gh = fakeGitHub(
+    [[]],
+    [{ context: "Vercel \u2013 web", state: "success", target_url: "https://vercel.com/team/web/abc", created_at: "1" }],
+  );
+  const time = clock();
+  await assert.rejects(
+    waitForDeployment({
+      github: gh.github,
+      repo: "o/r",
+      sha: HEAD,
+      environment: "Preview",
+      timeoutMs: 15 * 60_000,
+      ...time,
+      log: () => undefined,
+    }),
+    {
+      message:
+        "Vercel deployed 1111111 (its status Vercel \u2013 web says so), but made no GitHub deployment of it, so there is no address to record against. " +
+        "In the Vercel project's Settings, under Git, turn on deployment_status Events (new projects start with it off), then run this job again.",
+    },
+  );
+  // It gave Vercel its minute and no more, not the whole timeout.
+  assert.ok(time.now() >= VERCEL_GRACE_MS && time.now() < VERCEL_GRACE_MS + 2 * 15_000);
+});
+
+test("a Vercel status that is still pending, or a job that can't read statuses, just waits", async () => {
+  const pending = fakeGitHub(
+    [[]],
+    [{ context: "Vercel", state: "pending", target_url: "https://vercel.com/team/web/abc", created_at: "1" }],
+  );
+  await assert.rejects(
+    waitForDeployment({ github: pending.github, repo: "o/r", sha: HEAD, environment: "Preview", timeoutMs: 3 * 60_000, ...clock(), log: () => undefined }),
+    /was ready within 3 minutes\. GitHub has no deployment for this commit at all/,
+  );
+  // Without the commit's statuses (a 404 here) it asks once, then only for deployments.
+  const unreadable = fakeGitHub([[]]);
+  await assert.rejects(
+    waitForDeployment({ github: unreadable.github, repo: "o/r", sha: HEAD, environment: "Preview", timeoutMs: 3 * 60_000, ...clock(), log: () => undefined }),
+    /was ready within 3 minutes/,
+  );
+  assert.equal(unreadable.calls.filter((c) => c.includes("/commits/")).length, 1);
 });
 
 test("the timeout is minutes, 15 by default, and nothing else", () => {

@@ -16,7 +16,16 @@
  *
  * Which deployment: the newest of that commit's whose environment starts
  * with the `deployment` input, ignoring case. A prefix, because a host
- * names environments per project in a monorepo.
+ * names environments per project: Vercel's are `Preview` or `Production`,
+ * an en dash and the project's name, so `Preview` matches any project's
+ * preview, and `Preview - web` (typed with a hyphen) matches only web's.
+ *
+ * Vercel makes those deployments only when the project's deployment_status
+ * Events setting is on, and new projects start with it off (seen
+ * 2026-11-10). Its commit status says the commit deployed all the same, so
+ * when that status is there and no deployment follows, the step fails
+ * within a minute with the setting to change, instead of waiting out the
+ * timeout.
  *
  * Or, with `status-context` instead, for a host that reports a commit
  * status rather than a deployment (Netlify: `netlify/<site>/deploy-preview`):
@@ -35,6 +44,25 @@ import { client, GitHubError } from "./github.mjs";
 
 /** How often GitHub is asked. A deployment takes minutes; this is a fraction of one. */
 export const POLL_MS = 15_000;
+
+/**
+ * How long after Vercel's commit status says the commit deployed the step
+ * still waits for its GitHub deployment. Vercel makes both at the same
+ * moment, so a minute is ample.
+ */
+export const VERCEL_GRACE_MS = 60_000;
+
+/**
+ * An environment name or the input, compared without case, and with any
+ * dash or run of spaces as one space: Vercel names environments with an
+ * en dash, and a person types a hyphen.
+ */
+export function comparable(name) {
+  return String(name)
+    .toLowerCase()
+    .replace(/[\s\u2010-\u2015-]+/g, " ")
+    .trim();
+}
 
 /** The commit the host deployed for this run. */
 export function commitOf(env) {
@@ -95,9 +123,14 @@ export async function waitForDeployment({
   log = (line) => process.stdout.write(`${line}\n`),
 }) {
   const started = now();
-  const wanted = environment.toLowerCase();
+  const wanted = comparable(environment);
   let said = "";
   let seen = [];
+  // When this step first saw Vercel's status say the commit deployed, and
+  // whether the job may read commit statuses at all (a job whose
+  // permissions leave out `statuses: read` may not; it then just waits).
+  let vercelSince = null;
+  let readsStatuses = true;
   for (;;) {
     const deployments = await github.call("GET", `/repos/${repo}/deployments?sha=${sha}&per_page=100`);
     const all = Array.isArray(deployments) ? deployments : [];
@@ -105,7 +138,7 @@ export async function waitForDeployment({
     // GitHub lists them newest first; sorted anyway, so a reordered answer
     // still picks the newest.
     const matching = all
-      .filter((d) => typeof d.environment === "string" && d.environment.toLowerCase().startsWith(wanted))
+      .filter((d) => typeof d.environment === "string" && comparable(d.environment).startsWith(wanted))
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     const deployment = matching[0];
     let line;
@@ -127,6 +160,21 @@ export async function waitForDeployment({
       line = `Waiting for the ${deployment.environment} deployment of ${short(sha)} (${found.detail}).`;
     } else {
       line = `Waiting for a deployment of ${short(sha)} to an environment starting with "${environment}".`;
+      if (all.length === 0 && readsStatuses) {
+        const vercel = await vercelDeployed(github, repo, sha).catch(() => {
+          readsStatuses = false;
+          return null;
+        });
+        if (vercel) {
+          vercelSince ??= now();
+          if (now() - vercelSince >= VERCEL_GRACE_MS) {
+            throw new Error(
+              `Vercel deployed ${short(sha)} (its status ${vercel} says so), but made no GitHub deployment of it, so there is no address to record against. ` +
+                "In the Vercel project's Settings, under Git, turn on deployment_status Events (new projects start with it off), then run this job again.",
+            );
+          }
+        }
+      }
     }
     // Said when it changes, not on every poll, so the log stays readable.
     if (line !== said) {
@@ -141,8 +189,21 @@ export async function waitForDeployment({
     `No deployment of ${short(sha)} to an environment starting with "${environment}" was ready within ${minutes} minute${minutes === 1 ? "" : "s"}. ` +
       (seen.length > 0
         ? `GitHub has these environments for this commit: ${seen.join(", ")}. Set the deployment input to the one to record against.`
-        : "GitHub has no deployment for this commit at all. Check that your host creates GitHub deployments (Vercel does by default), or set the Action's url input instead."),
+        : "GitHub has no deployment for this commit at all. Check that your host creates GitHub deployments (on Vercel, the project's deployment_status Events setting, under Git), or set the Action's url input instead."),
   );
+}
+
+/**
+ * The context of a Vercel commit status that says this commit deployed,
+ * or null. Vercel's contexts are `Vercel`, or that, an en dash and the
+ * project's name.
+ */
+async function vercelDeployed(github, repo, sha) {
+  const statuses = await github.call("GET", `/repos/${repo}/commits/${sha}/statuses?per_page=100`);
+  const found = (Array.isArray(statuses) ? statuses : []).find(
+    (s) => typeof s.context === "string" && s.context.toLowerCase().startsWith("vercel") && s.state === "success",
+  );
+  return found ? found.context : null;
 }
 
 /**

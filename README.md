@@ -141,10 +141,13 @@ export default defineRecorder({
 
 If your app doesn't start in a runner (it needs a database, queues, other services), record it where it already runs: the preview your host deploys for each pull request, and the production deployment of each push. Hosts that report to GitHub's Deployments API, Vercel among them, work with the `deployment` input. The Action waits for this commit's deployment of that environment to succeed, then gives its address to versioncam as `VERSIONCAM_BASE_URL`.
 
+On Vercel, first turn on **deployment_status Events** in the project's Settings, under Git. New projects start with it off, and without it Vercel makes no GitHub deployment for the Action to find.
+
 ```yaml
 permissions:
   contents: read
   deployments: read # to find the commit's deployment
+  statuses: read # to tell you when Vercel deployed but made no GitHub deployment
   pull-requests: write
 
 steps:
@@ -162,7 +165,8 @@ steps:
 ```
 
 - On a pull request the Action waits for the deployment of the branch's head commit, which is what your host built. On a push it waits for the pushed commit's.
-- `deployment` is matched as a prefix and ignores case, for a host that adds a project's name to the environment in a monorepo. If no deployment of that environment is ready in time, the job fails and names the environments GitHub does have for the commit.
+- `deployment` is matched as a prefix and ignores case, because a host may add the project's name. Vercel does: its environments are `Preview` or `Production`, a dash and the project's name. So `Preview` matches any project's preview, and in a repository with several Vercel projects, `Preview - web` matches only web's (a hyphen matches Vercel's dash). If no deployment of that environment is ready in time, the job fails and names the environments GitHub does have for the commit.
+- If Vercel says it deployed the commit but no GitHub deployment follows within a minute, the job fails at once and tells you to turn on deployment_status Events, instead of waiting out the timeout. It needs `statuses: read` to see that.
 - A failed deployment fails the job with a link to its log.
 - `url` wins over `deployment`. Give one or the other.
 - Only `check` waits. `render` and `publish` use what the last check recorded.
